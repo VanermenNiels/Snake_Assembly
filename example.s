@@ -78,12 +78,13 @@ nmi_ready:		.res 1 ; set to 1 to push a PPU frame update,
 					   ;        2 to turn rendering off next NMI
 gamepad:		.res 1 ; stores the current gamepad values
 
-d_x:			.res 1 ; x direction of ball
-d_y:			.res 1 ; y direction of ball
+d_x:					 .res 1 ; x direction of ball
+d_y:					 .res 1 ; y direction of ball
 
-frame_timer: 	.res 1 ; frame timer
+frame_timer: 			 .res 1 ; frame timer
 
-score:			.res 1 ; score
+snake_size:				 .res 1 ; score
+snake_current_loop_size: .res 1 
 
 
 
@@ -301,23 +302,39 @@ textloop:
 	jmp textloop
  	:
 
- 	; place our bat sprite on the screen
+ 	; place head segment
  	lda #64
  	sta oam ; set Y
- 	lda #8
+ 	lda #16
  	sta oam + 3 ; set X
  	lda #1
  	sta oam + 1 ; set pattern
  	lda #2
  	sta oam + 2 ; set attributes
- 	; place our ball sprite on the screen
+
+	; place first body segment
  	lda #64
  	sta oam + (1 * 4) ; set Y
+ 	lda #8
  	sta oam + (1 * 4) + 3 ; set X
+ 	lda #1
+ 	sta oam + ( 1 * 4) + 1 ; set pattern
  	lda #2
- 	sta oam + (1 * 4) + 1 ; set patter + (1 * 4)n
+ 	sta oam + (1 * 4) + 2 ; set attributes
+
+	; place second body segment
+ 	lda #64
+ 	sta oam + (2 * 4); set Y
  	lda #0
- 	sta oam + (1 * 4) + 2 ; set atttibutes
+ 	sta oam + (2 * 4) + 3 ; set X
+ 	lda #1
+ 	sta oam + (2 * 4) + 1 ; set pattern
+ 	lda #2
+ 	sta oam + (2 * 4) + 2 ; set attributes
+
+	lda #3
+	sta snake_size
+	sta snake_current_loop_size
 
  	; get the screen to render
  	jsr ppu_update
@@ -328,28 +345,58 @@ textloop:
  	cmp #0
  	bne mainloop
 
-	
-
  	; read the gamepad
  	jsr gamepad_poll
-
 
 	inc frame_timer ; increment frame 
 	lda frame_timer
 	cmp #20
 	bne END_UPDATE_TIMER
-		lda 0
-		sta frame_timer
-		
-		lda oam ; get the current Y
-		clc
-		adc d_y ; add the Y velocity
-		sta oam ; write the change
 
-		lda oam + 3 ; get the current x
-		clc
-		adc d_x    ; add the X velocity
-		sta oam + 3
+	lda 0
+	sta frame_timer
+
+; Initialize loop with snake size (assuming snake_size is in bytes, not cells)
+	lda snake_size - 1
+	sta snake_current_loop_size
+
+UPDATE_SNAKE_SEGMENT_POSITIONS:	
+	lda oam + ((snake_current_loop_size - 1) * 4); get the current Y
+	sta oam + (snake_current_loop_size * 4); write the change
+
+	lda oam + ((snake_current_loop_size - 1) * 4) + 3 ; get segment's x-pos that is in front of the segment you want to update
+	sta oam + (snake_current_loop_size * 4) + 3 ; update the current segment x-pos
+
+	dec snake_current_loop_size
+	lda snake_current_loop_size
+	cmp #0
+	bne UPDATE_SNAKE_SEGMENT_POSITIONS
+	;update head
+	lda oam ; get the current Y
+	clc
+	adc d_y ; add the Y velocity
+	sta oam ; write the change
+
+	lda oam + 3 ; get the current x
+	clc
+	adc d_x    ; add the X velocity
+	sta oam + 3
+
+;UPDATE_SNAKE_HEAD:
+	;lda oam + (1 * 4)
+	;sta oam + (2 * 4)
+
+	;lda oam + (1 * 4) + 3
+	;sta oam + (2 * 4) + 3
+
+	;lda oam 
+	;sta oam + (1 * 4)
+
+	;lda oam + 3
+	;sta oam + (1 * 4) + 3
+
+	
+
 END_UPDATE_TIMER:
 
  	; now move the bat if left or right pressed
