@@ -51,6 +51,15 @@ update: 				 .res 1
 
 temp: .res 10
 
+snake_size:				 .res 1 ; score
+snake_current_loop_size: .res 1 
+
+temp_srcX_address: .res 4
+temp_dstX_address: .res 4
+
+temp_srcY_address: .res 4
+temp_dstY_address: .res 4
+
 
 ;*****************************************************************
 ; Sprite OAM Data area - copied to VRAM in NMI routine
@@ -268,7 +277,7 @@ titleloop:
  	sta oam + 3 ; set X
  	lda #0
  	sta oam + 1 ; set pattern
- 	lda #2
+ 	lda #0
  	sta oam + 2 ; set attributes
 
 	; place first body segment
@@ -278,7 +287,7 @@ titleloop:
  	sta oam + (1 * 4) + 3 ; set X
  	lda #0
  	sta oam + (1 * 4) + 1 ; set pattern
- 	lda #2
+ 	lda #0
  	sta oam + (1 * 4) + 2 ; set attributes
 
 	; place second body segment
@@ -288,7 +297,7 @@ titleloop:
  	sta oam + (2 * 4) + 3 ; set X
  	lda #0
  	sta oam + (2 * 4) + 1 ; set pattern
- 	lda #2
+ 	lda #0
  	sta oam + (2 * 4) + 2 ; set attributes
 
 	; place food
@@ -299,19 +308,22 @@ titleloop:
 	asl
 	clc
 	adc #80
-	sta oam + (3 * 4)
+	sta oam + (60 * 4)
 
 	lda #0
-	sta oam + (3 * 4) + 1 ; set pattern
+	sta oam + (60 * 4) + 1 ; set pattern
  	lda #1
- 	sta oam + (3 * 4) + 2 ; set attributes
+ 	sta oam + (60 * 4) + 2 ; set attributes
 
 	jsr rand
 	and #%00000111
 	asl
 	asl
 	asl
-	sta oam + (3 * 4) + 3
+	sta oam + (60 * 4) + 3
+
+	lda #2
+	sta snake_size
 
 	jsr ppu_update
 
@@ -329,34 +341,13 @@ mainloop:
 		lda #0
 		sta frame_timer
 
-		lda oam + (1 * 4)
-		sta oam + (2 * 4)
-
-		lda oam + (1 * 4) + 3
-		sta oam + (2 * 4) + 3
-
-		lda oam 
-		sta oam + (1 * 4)
-
-		lda oam + 3
-		sta oam + (1 * 4) + 3
-
-		;update head
-		lda oam ; get the current Y
-		clc
-		adc d_y ; add the Y velocity
-		sta oam ; write the change
-
-		lda oam + 3 ; get the current x
-		clc
-		adc d_x    ; add the X velocity
-		sta oam + 3
+		jsr update_body
 
 		lda oam
-		cmp oam + (3 * 4)
+		cmp oam + (60 * 4)
 		bne END_UPDATE_TIMER
 			lda oam + 3
-			cmp oam + (3 * 4) + 3
+			cmp oam + (60 * 4) + 3
 			bne END_UPDATE_TIMER
 				jsr rand
 				and #%00000111
@@ -365,7 +356,7 @@ mainloop:
 				asl
 				clc
 				adc #80
-				sta oam + (3 * 4)
+				sta oam + (60 * 4)
 
 				jsr rand
 				and #%00000111
@@ -373,10 +364,16 @@ mainloop:
 				asl
 				asl
 				clc
-				sta oam  + (3 * 4) + 3
+				sta oam  + (60 * 4) + 3
 
 				lda #1
 				jsr add_score
+
+				inc snake_size
+
+				jsr update_body
+
+
 
 	END_UPDATE_TIMER:
 
@@ -691,6 +688,63 @@ loop3:
 	sta PPU_VRAM_IO
 
 	vram_clear_address
+	rts
+.endproc
+
+.segment "CODE"
+.proc update_body
+	lda snake_size
+	sta snake_current_loop_size
+
+	UPDATE_SNAKE_BODY:
+		lda snake_current_loop_size
+		cmp #0
+		beq UPDATE_HEAD
+			lda snake_current_loop_size
+			asl
+			asl
+			sta temp_dstY_address
+
+			lda temp_dstY_address
+			clc
+			adc #3
+			sta temp_dstX_address
+
+			dec snake_current_loop_size
+			lda snake_current_loop_size
+			asl
+			asl
+			sta temp_srcY_address
+
+			lda temp_srcY_address
+			clc
+			adc #3
+			sta temp_srcX_address
+
+			ldx temp_srcY_address
+			ldy temp_dstY_address
+			lda oam, X
+			sta oam, Y
+
+			ldx temp_srcX_address
+			ldy temp_dstX_address
+			lda oam, X
+			sta oam, Y
+
+			jmp UPDATE_SNAKE_BODY
+
+	UPDATE_HEAD:
+		;update head
+		lda oam ; get the current Y
+		clc
+		adc d_y ; add the Y velocity
+		sta oam ; write the change
+
+		lda oam + 3 ; get the current x
+		clc
+		adc d_x    ; add the X velocity
+		sta oam + 3
+
 	rts
 .endproc
 
