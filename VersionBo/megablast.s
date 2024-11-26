@@ -49,6 +49,8 @@ frame_timer: 			 .res 1 ; frame timer
 score: 					 .res 3
 update: 				 .res 1
 
+bruh: .res 3
+
 temp: .res 10
 
 snake_size:				 .res 1 ; score
@@ -59,7 +61,6 @@ temp_dstX_address: .res 4
 
 temp_srcY_address: .res 4
 temp_dstY_address: .res 4
-
 
 ;*****************************************************************
 ; Sprite OAM Data area - copied to VRAM in NMI routine
@@ -80,6 +81,7 @@ oam: .res 256	; sprite OAM data
 
 .segment "BSS"
 palette: .res 32 ; current palette buffer
+segment_current_tile: .res 800 ; 2 bytes per pos: first byte for row and the second byte is for the column.
 
 ;*****************************************************************
 ; Main application entry point for starup/reset
@@ -267,9 +269,6 @@ titleloop:
 	sta score+1
 	sta score+2
 
-	; draw the game screen
-	jsr display_game_screen
-
 	; place head segment
  	lda #64
  	sta oam ; set Y
@@ -277,28 +276,23 @@ titleloop:
  	sta oam + 3 ; set X
  	lda #0
  	sta oam + 1 ; set pattern
- 	lda #0
+ 	lda #1
  	sta oam + 2 ; set attributes
 
-	; place first body segment
- 	lda #64
- 	sta oam + (1 * 4) ; set Y
- 	lda #8
- 	sta oam + (1 * 4) + 3 ; set X
- 	lda #0
- 	sta oam + (1 * 4) + 1 ; set pattern
- 	lda #0
- 	sta oam + (1 * 4) + 2 ; set attributes
+	; place body segment 
+	lda #8
+	sta segment_current_tile
+	lda #1
+	sta segment_current_tile + 1
 
-	; place second body segment
- 	lda #64
- 	sta oam + (2 * 4); set Y
- 	lda #0
- 	sta oam + (2 * 4) + 3 ; set X
- 	lda #0
- 	sta oam + (2 * 4) + 1 ; set pattern
- 	lda #0
- 	sta oam + (2 * 4) + 2 ; set attributes
+	lda #8
+	sta segment_current_tile
+	lda #0
+	sta segment_current_tile + 1
+
+	; draw the game screen
+	jsr display_game_screen
+
 
 	; place food
 	jsr rand
@@ -341,7 +335,8 @@ mainloop:
 		lda #0
 		sta frame_timer
 
-		jsr update_body
+		jsr update_body_test
+		jsr display_snake_segment
 
 		lda oam
 		cmp oam + (60 * 4)
@@ -371,9 +366,8 @@ mainloop:
 
 				inc snake_size
 
-				jsr update_body
-
-
+				jsr update_body_test
+				jsr display_snake_segment
 
 	END_UPDATE_TIMER:
 
@@ -490,6 +484,7 @@ title_attributes:
 
 	jsr clear_nametable ; Clear the 1st name table
 
+	
 	; Write our title text
 	vram_set_address (NAME_TABLE_0_ADDRESS + 4 * 32 + 6)
 	assign_16i text_address, title_text
@@ -501,14 +496,7 @@ title_attributes:
 	jsr write_text
 
 	; draw a base line
-	vram_set_address (NAME_TABLE_0_ADDRESS + 26 * 32 + 16)
-	ldy #0
-	lda #0 ; tile number to repeat
-looptest:
-	sta PPU_VRAM_IO
-	iny
-	cpy #1
-	bne looptest
+
 
 	; Set the title text to use the 2nd palette entries
 	vram_set_address (ATTRIBUTE_TABLE_0_ADDRESS + 8)
@@ -520,8 +508,6 @@ loop:
 	iny
 	cpy #8
 	bne loop
-
-	
 
 	jsr ppu_update ; Wait until the screen has been drawn
 
@@ -580,6 +566,16 @@ loop3:
 	iny
 	cpy #13
 	bne loop3
+
+	; draw a base line
+	vram_set_address (NAME_TABLE_0_ADDRESS + 26 * 32 + 16)
+	ldy #0
+	lda #0 ; tile number to repeat
+looptest:
+	sta PPU_VRAM_IO
+	iny
+	cpy #1
+	bne looptest
 
 	jsr ppu_update ; Wait until the screen has been drawn
 	rts
@@ -658,7 +654,7 @@ loop3:
 .segment "CODE"
 
 .proc display_score
-	vram_set_address (NAME_TABLE_0_ADDRESS + 27 * 32 + 6)
+	vram_set_address ($2000 + 27 * 32 + 6)
 
 	lda score+2 ; transform each decimal digit of the score
 	jsr dec99_to_bytes
@@ -731,6 +727,7 @@ loop3:
 			lda oam, X
 			sta oam, Y
 
+
 			jmp UPDATE_SNAKE_BODY
 
 	UPDATE_HEAD:
@@ -747,6 +744,137 @@ loop3:
 
 	rts
 .endproc
+
+.segment "CODE"
+.proc update_body_test
+	lda snake_size
+	sta snake_current_loop_size
+
+	UPDATE_SNAKE_BODY:
+		lda snake_current_loop_size
+		cmp #1
+		beq UPDATE_HEAD
+			lda snake_current_loop_size
+			cmp #0
+			beq UPDATE_HEAD
+			dec snake_current_loop_size
+			lda snake_current_loop_size
+			asl
+			sta temp_dstY_address
+
+			lda temp_dstY_address
+			clc
+			adc #1
+			sta temp_dstX_address
+
+			dec snake_current_loop_size
+			lda snake_current_loop_size
+			asl
+			sta temp_srcY_address
+
+			lda temp_srcY_address
+			clc
+			adc #1
+			sta temp_srcX_address
+
+			ldx temp_srcY_address
+			ldy temp_dstY_address
+			lda segment_current_tile, X
+			sta segment_current_tile, Y
+
+			ldx temp_srcX_address
+			ldy temp_dstX_address
+			lda segment_current_tile, X
+			sta segment_current_tile, Y
+			
+
+			jmp UPDATE_SNAKE_BODY
+
+	UPDATE_HEAD:
+	; updating segment right before head
+		lda oam
+		lsr 
+		lsr
+		lsr
+		sta segment_current_tile
+
+		lda oam + 3
+		lsr 
+		lsr
+		lsr
+		sta segment_current_tile + 1
+
+
+		;update head
+		lda oam ; get the current Y
+		clc
+		adc d_y ; add the Y velocity
+		sta oam ; write the change
+
+		lda oam + 3 ; get the current x
+		clc
+		adc d_x    ; add the X velocity
+		sta oam + 3
+
+	rts
+.endproc
+
+.segment "CODE"
+.proc display_snake_segment
+	jsr ppu_off
+	lda snake_size
+	sta snake_current_loop_size
+
+	HUH:
+		lda snake_current_loop_size
+		cmp #1
+		beq ERM
+		lda snake_current_loop_size
+		cmp #0
+		beq ERM
+			dec snake_current_loop_size
+			lda snake_current_loop_size
+			asl
+			sta temp_dstY_address
+
+			lda temp_dstY_address
+			clc
+			adc #1
+			sta temp_dstX_address
+
+			; update y pos
+			ldx temp_dstY_address
+			lda segment_current_tile, X
+			asl
+			asl
+			asl
+			asl
+			asl
+			sta temp_dstY_address
+
+			ldx temp_dstX_address
+			lda segment_current_tile, X
+			sta temp_dstX_address
+
+			; draw a base line
+			vram_set_address (NAME_TABLE_0_ADDRESS + temp_dstY_address + temp_dstX_address) ; y x
+			ldy #0
+			lda #$60 ; tile number to repeat
+		looptest:
+			sta PPU_VRAM_IO
+			iny
+			cpy #1
+			bne looptest
+
+			jmp HUH
+
+	ERM:
+
+	jsr ppu_update
+	rts
+
+.endproc
+
 
 ;*****************************************************************
 ; Our default palette table has 16 entries for tiles and 16 entries for sprites
