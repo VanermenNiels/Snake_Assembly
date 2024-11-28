@@ -53,14 +53,19 @@ bruh: .res 3
 
 temp: .res 10
 
-snake_size:				 .res 1 ; score
-snake_current_loop_size: .res 1 
+snake_size:				 .res 4 ; score
+snake_current_loop_size: .res 4 
 
 temp_srcX_address: .res 4
 temp_dstX_address: .res 4
 
 temp_srcY_address: .res 4
 temp_dstY_address: .res 4
+
+temp_pickupX: .res 4
+temp_pickupY: .res 4
+
+game_over: .res 1
 
 ;*****************************************************************
 ; Sprite OAM Data area - copied to VRAM in NMI routine
@@ -276,7 +281,7 @@ titleloop:
  	sta oam + 3 ; set X
  	lda #0
  	sta oam + 1 ; set pattern
- 	lda #1
+ 	lda #0
  	sta oam + 2 ; set attributes
 
 	; place body segment 
@@ -329,45 +334,51 @@ mainloop:
 	; time has changed update the lasttime value
 	sta lasttime
 
+	lda game_over
+	cmp #1
+	beq END_UPDATE_TIMER
+
 	lda frame_timer
-	cmp #20
+	cmp #10
 	bne END_UPDATE_TIMER
+		; reset fram timer
 		lda #0
 		sta frame_timer
+		; update snake and check if head it's a segment after update 
+		jsr update_body
+		jsr check_head_hit
+		;jsr display_snake_segment
 
-		jsr update_body_test
-		jsr display_snake_segment
-
+		; check if the head is on the pickup so it can place it somewhere else on a random place
 		lda oam
 		cmp oam + (60 * 4)
 		bne END_UPDATE_TIMER
 			lda oam + 3
 			cmp oam + (60 * 4) + 3
 			bne END_UPDATE_TIMER
-				jsr rand
-				and #%00000111
-				asl
-				asl
-				asl
-				clc
-				adc #80
-				sta oam + (60 * 4)
+				jsr place_pickup
+				;jsr rand
+				;and #%00000111 ; we do this because the rand gives us a number that is too large and we want a number between 0 - 7 because our playing field is 8x8
+				;asl
+				;asl
+				;asl ; * 8
+				;clc
+				;adc #80
+				;sta oam + (60 * 4)
 
-				jsr rand
-				and #%00000111
-				asl
-				asl
-				asl
-				clc
-				sta oam  + (60 * 4) + 3
+				;jsr rand
+				;and #%00000111
+				;asl
+				;asl
+				;asl
+				;clc
+				;sta oam  + (60 * 4) + 3
 
-				lda #1
-				jsr add_score
+				;lda #1
+				;jsr add_score
 
-				inc snake_size
-
-				jsr update_body_test
-				jsr display_snake_segment
+				;inc snake_size
+				;jsr display_snake_segment
 
 	END_UPDATE_TIMER:
 
@@ -470,7 +481,7 @@ lda gamepad
  .segment "CODE"
 
 title_text:
-.byte "U MOEDER",0
+.byte "SNAKE",0
 
 press_play_text:
 .byte "PRESS FIRE TO BEGIN",0
@@ -688,19 +699,80 @@ looptest:
 .endproc
 
 .segment "CODE"
+.proc place_pickup
+	PLACE_PICKUP_LOOP:
+    	jsr rand
+    	and #%00000111 ; Limit range to 0-7
+    	asl
+    	asl
+    	asl ; *8
+    	clc
+    	adc #80
+    	sta temp_pickupY
+
+    	jsr rand
+    	and #%00000111 ; Limit range to 0-7
+    	asl
+    	asl
+    	asl ; * 8 
+    	sta temp_pickupX
+
+    	; check if the temp placement collides with snake
+    	ldx #0
+	CHECK_PICKUP_COLLISION:
+    	cpx snake_size
+    	beq PLACE_PICKUP_DONE
+
+    	lda oam,X
+		asl
+		asl
+    	cmp temp_pickupY
+    	bne NEXT_SEGMENT
+
+    	lda oam, X
+		asl
+		asl
+		clc
+		adc #3
+    	cmp temp_pickupX
+    	bne NEXT_SEGMENT
+
+    	jmp PLACE_PICKUP_LOOP
+
+	NEXT_SEGMENT:
+    	inx
+    	jmp CHECK_PICKUP_COLLISION  
+
+	; the check is done so now we can place it
+	PLACE_PICKUP_DONE:
+    	lda temp_pickupY
+    	sta oam + (60 * 4) ; Store Y position in OAM
+
+    	lda temp_pickupX
+    	sta oam + (60 * 4) + 3 ; Store X position in OAM
+
+    	lda #1                  
+    	jsr add_score
+
+    	inc snake_size ; Increment snake size
+    	rts
+.endproc
+
+.segment "CODE"
 .proc update_body
 	lda snake_size
 	sta snake_current_loop_size
 
 	UPDATE_SNAKE_BODY:
-		lda snake_current_loop_size
+		lda snake_current_loop_size ; load loping and compare if it is 0 jump to update head
 		cmp #0
 		beq UPDATE_HEAD
-			lda snake_current_loop_size
+			; idx * 4 = result 1
+			lda snake_current_loop_size 
 			asl
 			asl
-			sta temp_dstY_address
-
+			sta temp_dstY_address 
+			; result 1 + 3
 			lda temp_dstY_address
 			clc
 			adc #3
@@ -743,6 +815,47 @@ looptest:
 		sta oam + 3
 
 	rts
+.endproc
+
+.segment "CODE"
+.proc check_head_hit
+lda snake_size
+	sta snake_current_loop_size
+
+	CHECK_SEGMENT_HIT:
+		lda snake_current_loop_size
+		cmp #0
+		beq LOOP_FINISHED
+			lda snake_current_loop_size
+			asl
+			asl
+			sta temp_dstY_address
+
+			lda temp_dstY_address
+			clc
+			adc #3
+			sta temp_dstX_address
+
+			dec snake_current_loop_size
+
+			; compare y coordinate
+			ldy temp_dstY_address
+			lda oam, Y
+			cmp oam
+			bne CHECK_SEGMENT_HIT
+
+			; compare x coordinate
+			ldy temp_dstX_address
+			lda oam, Y
+			cmp oam + 3
+			bne CHECK_SEGMENT_HIT
+
+			; set game_over to 1 so that the snake does not get updated anymore
+			lda #1
+			sta game_over
+
+			LOOP_FINISHED:
+			rts
 .endproc
 
 .segment "CODE"
@@ -825,7 +938,7 @@ looptest:
 	lda snake_size
 	sta snake_current_loop_size
 
-	HUH:
+	UPDATE_SNAKE_SEGMENTS:
 		lda snake_current_loop_size
 		cmp #1
 		beq ERM
@@ -866,10 +979,8 @@ looptest:
 			cpy #1
 			bne looptest
 
-			jmp HUH
-
+			jmp UPDATE_SNAKE_SEGMENTS
 	ERM:
-
 	jsr ppu_update
 	rts
 
