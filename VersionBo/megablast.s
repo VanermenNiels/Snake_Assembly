@@ -49,11 +49,10 @@ frame_timer: 			 .res 1 ; frame timer
 score: 					 .res 3
 update: 				 .res 1
 
-bruh: .res 3
-
 temp: .res 10
 
 snake_size:				 .res 4 ; score
+actual_snake_size:		 .res 4
 snake_current_loop_size: .res 4 
 
 temp_srcX_address: .res 4
@@ -323,6 +322,9 @@ titleloop:
 
 	lda #2
 	sta snake_size
+	
+	lda #3
+	sta actual_snake_size
 
 	jsr ppu_update
 
@@ -341,7 +343,7 @@ mainloop:
 	lda frame_timer
 	cmp #10
 	bne END_UPDATE_TIMER
-		; reset fram timer
+		; reset frame timer
 		lda #0
 		sta frame_timer
 		; update snake and check if head it's a segment after update 
@@ -356,30 +358,7 @@ mainloop:
 			lda oam + 3
 			cmp oam + (60 * 4) + 3
 			bne END_UPDATE_TIMER
-				jsr place_pickup
-				;jsr rand
-				;and #%00000111 ; we do this because the rand gives us a number that is too large and we want a number between 0 - 7 because our playing field is 8x8
-				;asl
-				;asl
-				;asl ; * 8
-				;clc
-				;adc #80
-				;sta oam + (60 * 4)
-
-				;jsr rand
-				;and #%00000111
-				;asl
-				;asl
-				;asl
-				;clc
-				;sta oam  + (60 * 4) + 3
-
-				;lda #1
-				;jsr add_score
-
-				;inc snake_size
-				;jsr display_snake_segment
-
+			jsr place_pickup
 	END_UPDATE_TIMER:
 
 	jsr player_actions
@@ -700,6 +679,9 @@ looptest:
 
 .segment "CODE"
 .proc place_pickup
+		inc snake_size ; Increment snake size
+		inc actual_snake_size
+		jsr update_body	
 	PLACE_PICKUP_LOOP:
     	jsr rand
     	and #%00000111 ; Limit range to 0-7
@@ -719,28 +701,29 @@ looptest:
 
     	; check if the temp placement collides with snake
     	ldx #0
+		stx snake_current_loop_size
 	CHECK_PICKUP_COLLISION:
-    	cpx snake_size
+		lda snake_current_loop_size
+    	cmp actual_snake_size
     	beq PLACE_PICKUP_DONE
 
-    	lda oam,X
+		lda snake_current_loop_size
 		asl
 		asl
+		tax
+
+    	lda oam, X
     	cmp temp_pickupY
     	bne NEXT_SEGMENT
 
-    	lda oam, X
-		asl
-		asl
-		clc
-		adc #3
+    	lda oam + 3, X
     	cmp temp_pickupX
     	bne NEXT_SEGMENT
 
     	jmp PLACE_PICKUP_LOOP
 
 	NEXT_SEGMENT:
-    	inx
+    	inc snake_current_loop_size
     	jmp CHECK_PICKUP_COLLISION  
 
 	; the check is done so now we can place it
@@ -754,7 +737,6 @@ looptest:
     	lda #1                  
     	jsr add_score
 
-    	inc snake_size ; Increment snake size
     	rts
 .endproc
 
