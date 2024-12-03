@@ -57,6 +57,7 @@ snake_current_loop_size: .res 4
 
 temp_srcX_address: .res 4
 temp_dstX_address: .res 4
+temp_dstPattern_address: .res 4
 
 temp_srcY_address: .res 4
 temp_dstY_address: .res 4
@@ -274,13 +275,13 @@ titleloop:
 	sta score+2
 
 	; place head segment
- 	lda #64
+ 	lda #63
  	sta oam ; set Y
  	lda #16
  	sta oam + 3 ; set X
- 	lda #0
+ 	lda #3
  	sta oam + 1 ; set pattern
- 	lda #0
+ 	lda #2
  	sta oam + 2 ; set attributes
 
 	; place body segment 
@@ -305,10 +306,10 @@ titleloop:
 	asl
 	asl
 	clc
-	adc #80
+	adc #79
 	sta oam + (60 * 4)
 
-	lda #0
+	lda #1
 	sta oam + (60 * 4) + 1 ; set pattern
  	lda #1
  	sta oam + (60 * 4) + 2 ; set attributes
@@ -339,17 +340,20 @@ mainloop:
 	lda game_over
 	cmp #1
 	beq END_UPDATE_TIMER
+	jsr player_actions
 
 	lda frame_timer
-	cmp #10
+	cmp #15
 	bne END_UPDATE_TIMER
 		; reset frame timer
 		lda #0
 		sta frame_timer
 		; update snake and check if head it's a segment after update 
+
 		jsr update_body
 		jsr check_head_hit
 		;jsr display_snake_segment
+		;jsr update_body_test
 
 		; check if the head is on the pickup so it can place it somewhere else on a random place
 		lda oam
@@ -360,9 +364,6 @@ mainloop:
 			bne END_UPDATE_TIMER
 			jsr place_pickup
 	END_UPDATE_TIMER:
-
-	jsr player_actions
-	;jsr move_player_bullet
 
  	jmp mainloop
 .endproc
@@ -379,53 +380,68 @@ mainloop:
  	and #PAD_L
  	beq NOT_GAMEPAD_LEFT
  		; gamepad has been pressed left
+		lda oam
+		cmp oam + 4
+		beq NOT_GAMEPAD_LEFT
+
 		lda d_x
 		cmp #0
 		bne NOT_GAMEPAD_LEFT
 
-		lda #$F8
-		sta d_x
 		lda #0
 		sta d_y
+		lda #$F8
+		sta d_x
 NOT_GAMEPAD_LEFT:
 
  	lda gamepad
  	and #PAD_R
  	beq NOT_GAMEPAD_RIGHT
+		lda oam
+		cmp oam + 4
+		beq NOT_GAMEPAD_RIGHT
+
 		lda d_x
 		cmp #0
 		bne NOT_GAMEPAD_RIGHT
 
- 		lda #$08
-		sta d_x
 		lda #$0
 		sta d_y
+ 		lda #$08
+		sta d_x
+		
 NOT_GAMEPAD_RIGHT:
-
 lda gamepad
      and #PAD_U
      beq NOT_GAMEPAD_UP
+	 	lda oam + 3
+		cmp oam + 7
+		beq NOT_GAMEPAD_UP
+
 	 	lda d_y
 		cmp #0
 		bne NOT_GAMEPAD_UP
 
-		lda #$F8
-		sta d_y
 		lda #$0
 		sta d_x
+		lda #$F8
+		sta d_y
  NOT_GAMEPAD_UP:
-
  lda gamepad
      and #PAD_D
      beq NOT_GAMEPAD_DOWN
+	 	lda oam + 3
+		cmp oam + 7
+		beq NOT_GAMEPAD_DOWN
+
 	 	lda d_y
 		cmp #0
 		bne NOT_GAMEPAD_DOWN
 
+		lda #0
+		sta d_x
         lda #$08
 		sta d_y
-		lda #0
-		sta d_x ; change X to the left
  NOT_GAMEPAD_DOWN:
 
 	rts
@@ -466,8 +482,8 @@ press_play_text:
 .byte "PRESS FIRE TO BEGIN",0
 
 title_attributes:
-.byte %00000111,%00000111,%00000111,%00000111
-.byte %00000111,%00000111,%00000111,%00000111
+.byte %00000101,%00000101,%00000101,%00000101
+.byte %00000101,%00000101,%00000101,%00000101
 
 .proc display_title_screen
 	jsr ppu_off ; Wait for the screen to be drawn and then turn off drawing
@@ -489,14 +505,14 @@ title_attributes:
 
 
 	; Set the title text to use the 2nd palette entries
-	vram_set_address (ATTRIBUTE_TABLE_0_ADDRESS + 8)
+	vram_set_address (ATTRIBUTE_TABLE_0_ADDRESS + 32)
 	assign_16i paddr, title_attributes
 	ldy #0
 loop:
 	lda (paddr),y
 	sta PPU_VRAM_IO
 	iny
-	cpy #8
+	cpy #5
 	bne loop
 
 	jsr ppu_update ; Wait until the screen has been drawn
@@ -516,6 +532,10 @@ game_screen_mountain:
 game_screen_scoreline:
 .byte "SCORE 0000000"
 
+score_attributes:
+.byte %00000101,%00000101,%00000101,%00000101
+.byte %00000101,%00000101,%00000101,%00000101
+
 .segment "ZEROPAGE"
 
 paddr: .res 2 ; 16-bit address pointer
@@ -525,27 +545,6 @@ paddr: .res 2 ; 16-bit address pointer
 	jsr ppu_off ; Wait for the screen to be drawn and then turn off drawing
 
 	jsr clear_nametable ; Clear the 1st name table
-
-	; output mountain line
-	;vram_set_address (NAME_TABLE_0_ADDRESS + 22 * 32)
-	;assign_16i paddr, game_screen_mountain
-	ldy #0
-loop:
-	lda (paddr),y
-	sta PPU_VRAM_IO
-	iny
-	cpy #32
-	bne loop
-
-	; draw a base line
-	vram_set_address (NAME_TABLE_0_ADDRESS + 26 * 32)
-	ldy #0
-	lda #9 ; tile number to repeat
-loop2:
-	sta PPU_VRAM_IO
-	iny
-	cpy #32
-	bne loop2
 
 	; output the score section on the next line
 	assign_16i paddr, game_screen_scoreline
@@ -557,15 +556,16 @@ loop3:
 	cpy #13
 	bne loop3
 
-	; draw a base line
-	vram_set_address (NAME_TABLE_0_ADDRESS + 26 * 32 + 16)
+	; Set the title text to use the 2nd palette entries
+	vram_set_address (ATTRIBUTE_TABLE_0_ADDRESS)
+	assign_16i paddr, title_attributes
 	ldy #0
-	lda #0 ; tile number to repeat
-looptest:
+loop:
+	lda (paddr),y
 	sta PPU_VRAM_IO
 	iny
-	cpy #1
-	bne looptest
+	cpy #8
+	bne loop
 
 	jsr ppu_update ; Wait until the screen has been drawn
 	rts
@@ -644,7 +644,7 @@ looptest:
 .segment "CODE"
 
 .proc display_score
-	vram_set_address ($2000 + 27 * 32 + 6)
+	vram_set_address ($2000 + 0 * 32 + 6)
 
 	lda score+2 ; transform each decimal digit of the score
 	jsr dec99_to_bytes
@@ -689,7 +689,7 @@ looptest:
     	asl
     	asl ; *8
     	clc
-    	adc #80
+    	adc #79
     	sta temp_pickupY
 
     	jsr rand
@@ -754,11 +754,31 @@ looptest:
 			asl
 			asl
 			sta temp_dstY_address 
+
+			lda temp_dstY_address
+			clc
+			adc #1
+			sta temp_dstPattern_address
+
+			; ldx temp_dstPattern_address
+			; lda #0
+			; sta oam, X
+
+			; lda snake_size
+			; cmp snake_current_loop_size
+			; bne NO_PATTERN
+			; 	lda #4
+			; 	sta oam, X
+
+			; NO_PATTERN:
+
 			; result 1 + 3
 			lda temp_dstY_address
 			clc
 			adc #3
 			sta temp_dstX_address
+
+
 
 			dec snake_current_loop_size
 			lda snake_current_loop_size
@@ -795,6 +815,48 @@ looptest:
 		clc
 		adc d_x    ; add the X velocity
 		sta oam + 3
+
+		lda d_y
+		cmp #0
+		beq X_RTOTATION
+		clc
+
+		lda #2
+		sta oam + 1
+
+		lda #%00000010
+		sta oam + 2
+
+		lda d_y
+		cmp #$08
+		bne X_RTOTATION
+
+		lda #%10000010
+		sta oam + 2
+
+		jmp END
+
+
+		X_RTOTATION:
+		lda d_x
+		cmp #0
+		beq END
+		clc
+
+		lda #3
+		sta oam + 1
+
+		lda #%00000010
+		sta oam + 2
+
+		lda d_x
+		cmp #$F8
+		bne END
+
+		lda #%01000010
+		sta oam + 2
+
+	END:
 
 	rts
 .endproc
@@ -953,14 +1015,8 @@ lda snake_size
 
 			; draw a base line
 			vram_set_address (NAME_TABLE_0_ADDRESS + temp_dstY_address + temp_dstX_address) ; y x
-			ldy #0
 			lda #$60 ; tile number to repeat
-		looptest:
 			sta PPU_VRAM_IO
-			iny
-			cpy #1
-			bne looptest
-
 			jmp UPDATE_SNAKE_SEGMENTS
 	ERM:
 	jsr ppu_update
@@ -979,7 +1035,7 @@ default_palette:
 .byte $0F,$19,$29,$39 ; bg1 green
 .byte $0F,$11,$21,$31 ; bg2 blue
 .byte $0F,$00,$10,$30 ; bg3 greyscale
-.byte $0F,$28,$21,$11 ; sp0 player
-.byte $0F,$14,$24,$34 ; sp1 purple
-.byte $0F,$1B,$2B,$3B ; sp2 teal
+.byte $0F,$09,$19,$29 ; body
+.byte $0F,$26,$05,$09 ; apple
+.byte $0F,$08,$25,$29 ; head
 .byte $0F,$12,$22,$32 ; sp3 marine
