@@ -200,9 +200,14 @@ wait_vblank2:
 	lda #%00001000 ; does the game over message need to be displayed?
 	bit update
 	beq @skipgameover
-		vram_set_address (NAME_TABLE_0_ADDRESS + 14 * 32 + 7)
+		vram_set_address (NAME_TABLE_0_ADDRESS + 8 * 32 + 7)
 		assign_16i text_address, game_over_text 
 		jsr write_text
+
+		vram_set_address (NAME_TABLE_0_ADDRESS + 9 * 32 + 7)
+		assign_16i text_address, restart_text 
+		jsr write_text
+
 		lda #%11110111 ; reset game over message update flag
 		and update
 		sta update
@@ -269,7 +274,7 @@ paletteloop:
 titleloop:
 	jsr gamepad_poll
 	lda gamepad
-	and #PAD_A|PAD_B|PAD_START|PAD_SELECT
+	and #PAD_START|PAD_SELECT
 	beq titleloop
 
 	lda time
@@ -320,19 +325,19 @@ titleloop:
 	asl
 	clc
 	adc #79
-	sta oam + (60 * 4)
+	sta oam + (63 * 4)
 
 	lda #1
-	sta oam + (60 * 4) + 1 ; set pattern
+	sta oam + (63 * 4) + 1 ; set pattern
  	lda #1
- 	sta oam + (60 * 4) + 2 ; set attributes
+ 	sta oam + (63 * 4) + 2 ; set attributes
 
 	jsr rand
 	and #%00000111
 	asl
 	asl
 	asl
-	sta oam + (60 * 4) + 3
+	sta oam + (63 * 4) + 3
 
 	lda #2
 	sta snake_size
@@ -350,10 +355,15 @@ mainloop:
 	; time has changed update the lasttime value
 	sta lasttime
 
+	jsr player_actions
+
+	lda game_start
+	cmp #0
+	beq END_UPDATE_TIMER
+
 	lda game_over
 	cmp #1
 	beq END_UPDATE_TIMER
-	jsr player_actions
 
 	lda frame_timer
 	cmp #10
@@ -361,8 +371,6 @@ mainloop:
 		; reset frame timer
 		lda #0
 		sta frame_timer
-		lda #1
-		sta game_start
 		; update snake and check if head it's a segment after update 
 
 		jsr update_body
@@ -372,10 +380,10 @@ mainloop:
 
 		; check if the head is on the pickup so it can place it somewhere else on a random place
 		lda oam
-		cmp oam + (60 * 4)
+		cmp oam + (63 * 4)
 		bne END_UPDATE_TIMER
 			lda oam + 3
-			cmp oam + (60 * 4) + 3
+			cmp oam + (63 * 4) + 3
 			bne END_UPDATE_TIMER
 			jsr place_pickup
 	END_UPDATE_TIMER:
@@ -412,6 +420,8 @@ mainloop:
 		beq NOT_GAMEPAD_LEFT
 			lda #10
 			sta frame_timer
+			lda #1
+			sta game_start
 		jmp NOT_GAMEPAD_DOWN
 NOT_GAMEPAD_LEFT:
 
@@ -436,7 +446,8 @@ NOT_GAMEPAD_LEFT:
 		beq NOT_GAMEPAD_RIGHT
 			lda #10
 			sta frame_timer
-
+			lda #1
+			sta game_start
 		jmp NOT_GAMEPAD_DOWN
 NOT_GAMEPAD_RIGHT:
 lda gamepad
@@ -460,6 +471,8 @@ lda gamepad
 		beq NOT_GAMEPAD_UP
 			lda #10
 			sta frame_timer
+			lda #1
+			sta game_start
 
 		jmp NOT_GAMEPAD_DOWN
  NOT_GAMEPAD_UP:
@@ -485,7 +498,18 @@ lda gamepad
 		beq NOT_GAMEPAD_DOWN
 			lda #10
 			sta frame_timer
+			lda #1
+			sta game_start
  NOT_GAMEPAD_DOWN:
+
+	 lda gamepad
+     and #PAD_A
+     beq NOT_GAMEPAD_A
+	 	lda game_over
+		cmp #1
+		bne NOT_GAMEPAD_A
+			jsr reset
+NOT_GAMEPAD_A:
 
 	rts
 .endproc
@@ -496,7 +520,7 @@ title_text:
 .byte "SNAKE",0
 
 press_play_text:
-.byte "PRESS FIRE TO BEGIN",0
+.byte "PRESS SELECT OR START TO BEGIN",0
 
 title_attributes:
 .byte %00000101,%00000101,%00000101,%00000101
@@ -540,6 +564,9 @@ loop:
 .segment "CODE"
 game_over_text:
 .byte "GAME OVER",0
+
+restart_text:
+.byte "PRESS A TO RESTART",0
 .proc display_losing_screen
 	jsr ppu_off ; Wait for the screen to be drawn and then turn off drawing
 
@@ -776,10 +803,10 @@ loop:
 	; the check is done so now we can place it
 	PLACE_PICKUP_DONE:
     	lda temp_pickupY
-    	sta oam + (60 * 4) ; Store Y position in OAM
+    	sta oam + (63 * 4) ; Store Y position in OAM
 
     	lda temp_pickupX
-    	sta oam + (60 * 4) + 3 ; Store X position in OAM
+    	sta oam + (63 * 4) + 3 ; Store X position in OAM
 
     	lda #1                  
     	jsr add_score
