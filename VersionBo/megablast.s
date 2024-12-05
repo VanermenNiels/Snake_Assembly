@@ -66,7 +66,8 @@ temp_pickupY: .res 4
 
 temp_dstPattern_address: .res 4
 
-game_over: .res 1 ; used as a boolean
+game_over:  .res 1 ; used as a boolean
+game_start: .res 1 ; used as a boolean
 
 testing: .res 1
 
@@ -196,6 +197,16 @@ wait_vblank2:
 		and update
 		sta update
 @skipscore:
+	lda #%00001000 ; does the game over message need to be displayed?
+	bit update
+	beq @skipgameover
+		vram_set_address (NAME_TABLE_0_ADDRESS + 14 * 32 + 7)
+		assign_16i text_address, game_over_text 
+		jsr write_text
+		lda #%11110111 ; reset game over message update flag
+		and update
+		sta update
+@skipgameover:
 
 	; write current scroll and control settings
 	lda #0
@@ -350,6 +361,8 @@ mainloop:
 		; reset frame timer
 		lda #0
 		sta frame_timer
+		lda #1
+		sta game_start
 		; update snake and check if head it's a segment after update 
 
 		jsr update_body
@@ -366,7 +379,7 @@ mainloop:
 			bne END_UPDATE_TIMER
 			jsr place_pickup
 	END_UPDATE_TIMER:
-
+		
  	jmp mainloop
 .endproc
 ;*****************************************************************
@@ -393,6 +406,12 @@ mainloop:
 		sta d_y
 		lda #$F8
 		sta d_x
+
+		lda game_start
+		cmp #1
+		beq NOT_GAMEPAD_LEFT
+			lda #10
+			sta frame_timer
 		jmp NOT_GAMEPAD_DOWN
 NOT_GAMEPAD_LEFT:
 
@@ -411,6 +430,13 @@ NOT_GAMEPAD_LEFT:
 		sta d_y
  		lda #$08
 		sta d_x
+
+		lda game_start
+		cmp #1
+		beq NOT_GAMEPAD_RIGHT
+			lda #10
+			sta frame_timer
+
 		jmp NOT_GAMEPAD_DOWN
 NOT_GAMEPAD_RIGHT:
 lda gamepad
@@ -428,8 +454,16 @@ lda gamepad
 		sta d_x
 		lda #$F8
 		sta d_y
+
+		lda game_start
+		cmp #1
+		beq NOT_GAMEPAD_UP
+			lda #10
+			sta frame_timer
+
 		jmp NOT_GAMEPAD_DOWN
  NOT_GAMEPAD_UP:
+
  lda gamepad
      and #PAD_D
      beq NOT_GAMEPAD_DOWN
@@ -445,18 +479,21 @@ lda gamepad
 		sta d_x
         lda #$08
 		sta d_y
+
+		lda game_start
+		cmp #1
+		beq NOT_GAMEPAD_DOWN
+			lda #10
+			sta frame_timer
  NOT_GAMEPAD_DOWN:
 
 	rts
 .endproc
 
- .segment "CODE"
+.segment "CODE"
 
 title_text:
 .byte "SNAKE",0
-
-game_over_text:
-.byte "GAME OVER",0
 
 press_play_text:
 .byte "PRESS FIRE TO BEGIN",0
@@ -500,6 +537,9 @@ loop:
 	rts
 .endproc
 
+.segment "CODE"
+game_over_text:
+.byte "GAME OVER",0
 .proc display_losing_screen
 	jsr ppu_off ; Wait for the screen to be drawn and then turn off drawing
 
@@ -519,7 +559,7 @@ loop:
 	lda (paddr),y
 	sta PPU_VRAM_IO
 	iny
-	cpy #5
+	cpy #8
 	bne loop
 
 	jsr ppu_update ; Wait until the screen has been drawn
@@ -668,7 +708,7 @@ loop:
 	stx temp+4
 	sta temp+5
 
-	ldx #0 ; write the six characters to the screen
+	ldx #4 ; write the six characters to the screen
 @loop:
 	lda temp,x
 	clc
@@ -889,6 +929,9 @@ lda snake_size
 			bne CHECK_SEGMENT_HIT
 
 			; set game_over to 1 so that the snake does not get updated anymore
+			lda #%00001000
+			ora update
+			sta update
 			lda #1
 			sta game_over
 
@@ -1016,6 +1059,21 @@ lda snake_size
 	jsr ppu_update
 	rts
 
+.endproc
+
+.segment "CODE"
+.proc clear_sprites
+;
+lda #255
+ldx #0
+clear_oam:
+sta oam,x
+inx
+inx
+inx
+inx
+bne clear_oam
+rts
 .endproc
 
 
