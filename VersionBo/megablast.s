@@ -52,12 +52,11 @@ update: 				 .res 1
 temp: .res 10
 
 snake_size:				 .res 4 ; score
-actual_snake_size:		 .res 4
+actual_snake_size:		 .res 4 ; snake size including the head
 snake_current_loop_size: .res 4 
 
 temp_srcX_address: .res 4
 temp_dstX_address: .res 4
-temp_dstPattern_address: .res 4
 
 temp_srcY_address: .res 4
 temp_dstY_address: .res 4
@@ -65,7 +64,11 @@ temp_dstY_address: .res 4
 temp_pickupX: .res 4
 temp_pickupY: .res 4
 
-game_over: .res 1
+temp_dstPattern_address: .res 4
+
+game_over: .res 1 ; used as a boolean
+
+testing: .res 1
 
 ;*****************************************************************
 ; Sprite OAM Data area - copied to VRAM in NMI routine
@@ -298,7 +301,6 @@ titleloop:
 	; draw the game screen
 	jsr display_game_screen
 
-
 	; place food
 	jsr rand
 	and #%00000111
@@ -343,7 +345,7 @@ mainloop:
 	jsr player_actions
 
 	lda frame_timer
-	cmp #15
+	cmp #10
 	bne END_UPDATE_TIMER
 		; reset frame timer
 		lda #0
@@ -367,7 +369,6 @@ mainloop:
 
  	jmp mainloop
 .endproc
-
 ;*****************************************************************
 ; Check for the game controller, move the player or fire a bullet
 ;*****************************************************************
@@ -392,6 +393,7 @@ mainloop:
 		sta d_y
 		lda #$F8
 		sta d_x
+		jmp NOT_GAMEPAD_DOWN
 NOT_GAMEPAD_LEFT:
 
  	lda gamepad
@@ -409,7 +411,7 @@ NOT_GAMEPAD_LEFT:
 		sta d_y
  		lda #$08
 		sta d_x
-		
+		jmp NOT_GAMEPAD_DOWN
 NOT_GAMEPAD_RIGHT:
 lda gamepad
      and #PAD_U
@@ -426,6 +428,7 @@ lda gamepad
 		sta d_x
 		lda #$F8
 		sta d_y
+		jmp NOT_GAMEPAD_DOWN
  NOT_GAMEPAD_UP:
  lda gamepad
      and #PAD_D
@@ -447,36 +450,13 @@ lda gamepad
 	rts
 .endproc
 
-;*****************************************************************
-; Check for the game controller, move the player or fire a bullet
-;*****************************************************************
-.segment "CODE"
-
-;.proc move_player_bullet
-;	lda oam + 16
-;	cmp #$FF ; see if bullet sprite is on screen
-;	beq @exit
-;		; bullet is on screen, move it up
-;		sec
-;		sbc #4
-;		sta oam + 16
-;		bcs @exit
-;			; value carried so we have gone off the top of the screen
-;			; hide bullet
-;			lda #$FF
-;			sta oam + 16
-;
-;@exit:
-;	rts
-;.endproc
-
-;*****************************************************************
-; Display Title Screen
-;*****************************************************************
  .segment "CODE"
 
 title_text:
 .byte "SNAKE",0
+
+game_over_text:
+.byte "GAME OVER",0
 
 press_play_text:
 .byte "PRESS FIRE TO BEGIN",0
@@ -520,6 +500,33 @@ loop:
 	rts
 .endproc
 
+.proc display_losing_screen
+	jsr ppu_off ; Wait for the screen to be drawn and then turn off drawing
+
+	jsr clear_nametable ; Clear the 1st name table
+
+	
+	; Write our title text
+	vram_set_address (NAME_TABLE_0_ADDRESS + 4 * 32 + 6)
+	assign_16i text_address, game_over_text
+	jsr write_text
+
+	; Set the title text to use the 2nd palette entries
+	vram_set_address (ATTRIBUTE_TABLE_0_ADDRESS + 32)
+	assign_16i paddr, title_attributes
+	ldy #0
+loop:
+	lda (paddr),y
+	sta PPU_VRAM_IO
+	iny
+	cpy #5
+	bne loop
+
+	jsr ppu_update ; Wait until the screen has been drawn
+
+	rts
+.endproc
+
 ;*****************************************************************
 ; Display Main Game Screen
 ;*****************************************************************
@@ -530,7 +537,7 @@ game_screen_mountain:
 .byte 001,002,003,004,001,002,003,004,001,002,003,004,001,002,003,004
 .byte 001,002,003,004,001,002,003,004,001,002,003,004,001,002,003,004
 game_screen_scoreline:
-.byte "SCORE 0000000"
+.byte "SCORE 000"
 
 score_attributes:
 .byte %00000101,%00000101,%00000101,%00000101
@@ -760,19 +767,6 @@ loop:
 			adc #1
 			sta temp_dstPattern_address
 
-			; ldx temp_dstPattern_address
-			; lda #0
-			; sta oam, X
-
-			; lda snake_size
-			; cmp snake_current_loop_size
-			; bne NO_PATTERN
-			; 	lda #4
-			; 	sta oam, X
-
-			; NO_PATTERN:
-
-			; result 1 + 3
 			lda temp_dstY_address
 			clc
 			adc #3
