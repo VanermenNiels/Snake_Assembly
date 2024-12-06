@@ -66,6 +66,9 @@ temp_pickupY: .res 4
 
 temp_dstPattern_address: .res 4
 
+x_border: .res 4
+y_border: .res 4
+
 game_over:  .res 1 ; used as a boolean
 game_start: .res 1 ; used as a boolean
 
@@ -293,10 +296,15 @@ titleloop:
 	sta score+1
 	sta score+2
 
+	lda #32 ; define borders
+	sta x_border
+	lda #32
+	sta y_border
+
 	; place head segment
- 	lda #63
+ 	lda #128
  	sta oam ; set Y
- 	lda #16
+ 	lda #128
  	sta oam + 3 ; set X
  	lda #3
  	sta oam + 1 ; set pattern
@@ -641,6 +649,70 @@ loop:
 	cpy #8
 	bne loop
 
+	; Draw the playing field
+	vram_set_address (NAME_TABLE_0_ADDRESS +13 * 32 + 13)
+	ldx #0
+	lda #$60
+	counterLoop1:
+	sta PPU_VRAM_IO
+	inx
+	cpx #7
+	bne counterLoop1
+
+	vram_set_address (NAME_TABLE_0_ADDRESS +14 * 32 + 13)
+	ldx #0
+	lda #$60
+	counterLoop2:
+		sta PPU_VRAM_IO
+	inx
+	cpx #7
+	bne counterLoop2
+
+	vram_set_address (NAME_TABLE_0_ADDRESS +15 * 32 + 13)
+	ldx #0
+	lda #$60
+	counterLoop3:
+		sta PPU_VRAM_IO
+	inx
+	cpx #7
+	bne counterLoop3
+
+	vram_set_address (NAME_TABLE_0_ADDRESS +16 * 32 + 13)
+	ldx #0
+	lda #$60
+	counterLoop4:
+		sta PPU_VRAM_IO
+	inx
+	cpx #7
+	bne counterLoop4
+
+	vram_set_address (NAME_TABLE_0_ADDRESS +17 * 32 + 13)
+	ldx #0
+	lda #$60
+	counterLoop5:
+		sta PPU_VRAM_IO
+	inx
+	cpx #7
+	bne counterLoop5
+
+	vram_set_address (NAME_TABLE_0_ADDRESS +18 * 32 + 13)
+	ldx #0
+	lda #$60
+	counterLoop6:
+		sta PPU_VRAM_IO
+	inx
+	cpx #7
+	bne counterLoop6
+
+	vram_set_address (NAME_TABLE_0_ADDRESS +19 * 32 + 13)
+	ldx #0
+	lda #$60
+	counterLoop7:
+		sta PPU_VRAM_IO
+	inx
+	cpx #7
+	bne counterLoop7
+
 	jsr ppu_update ; Wait until the screen has been drawn
 	rts
 .endproc
@@ -924,6 +996,30 @@ loop:
 
 .segment "CODE"
 .proc check_head_hit
+lda #128 ;checken the borders of the playing field
+	sec
+	sbc y_border
+	cmp oam
+	beq GAME_OVER
+
+	lda #128
+	clc
+	adc y_border
+	cmp oam
+	beq GAME_OVER
+
+	lda #128
+	sec
+	sbc x_border
+	cmp oam + 3
+	beq GAME_OVER
+
+	lda #128
+	clc
+	adc x_border
+	cmp oam + 3
+	beq GAME_OVER
+
 lda snake_size
 	sta snake_current_loop_size
 
@@ -955,6 +1051,7 @@ lda snake_size
 			cmp oam + 3
 			bne CHECK_SEGMENT_HIT
 
+			GAME_OVER:
 			; set game_over to 1 so that the snake does not get updated anymore
 			lda #%00001000
 			ora update
