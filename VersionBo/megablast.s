@@ -650,67 +650,76 @@ loop:
 	bne loop
 
 	; Draw the playing field
-	vram_set_address (NAME_TABLE_0_ADDRESS +13 * 32 + 13)
+	vram_set_address (NAME_TABLE_0_ADDRESS +12 * 32 + 12)
+	ldx #0
+	lda #$60
+	counterLoop8:
+	sta PPU_VRAM_IO
+	inx
+	cpx #8
+	bne counterLoop8
+
+	vram_set_address (NAME_TABLE_0_ADDRESS +13 * 32 + 12)
 	ldx #0
 	lda #$60
 	counterLoop1:
 	sta PPU_VRAM_IO
 	inx
-	cpx #7
+	cpx #8
 	bne counterLoop1
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +14 * 32 + 13)
+	vram_set_address (NAME_TABLE_0_ADDRESS +14 * 32 + 12)
 	ldx #0
 	lda #$60
 	counterLoop2:
 		sta PPU_VRAM_IO
 	inx
-	cpx #7
+	cpx #8
 	bne counterLoop2
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +15 * 32 + 13)
+	vram_set_address (NAME_TABLE_0_ADDRESS +15 * 32 + 12)
 	ldx #0
 	lda #$60
 	counterLoop3:
 		sta PPU_VRAM_IO
 	inx
-	cpx #7
+	cpx #8
 	bne counterLoop3
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +16 * 32 + 13)
+	vram_set_address (NAME_TABLE_0_ADDRESS +16 * 32 + 12)
 	ldx #0
 	lda #$60
 	counterLoop4:
 		sta PPU_VRAM_IO
 	inx
-	cpx #7
+	cpx #8
 	bne counterLoop4
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +17 * 32 + 13)
+	vram_set_address (NAME_TABLE_0_ADDRESS +17 * 32 + 12)
 	ldx #0
 	lda #$60
 	counterLoop5:
 		sta PPU_VRAM_IO
 	inx
-	cpx #7
+	cpx #8
 	bne counterLoop5
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +18 * 32 + 13)
+	vram_set_address (NAME_TABLE_0_ADDRESS +18 * 32 + 12)
 	ldx #0
 	lda #$60
 	counterLoop6:
 		sta PPU_VRAM_IO
 	inx
-	cpx #7
+	cpx #8
 	bne counterLoop6
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +19 * 32 + 13)
+	vram_set_address (NAME_TABLE_0_ADDRESS +19 * 32 + 12)
 	ldx #0
 	lda #$60
 	counterLoop7:
 		sta PPU_VRAM_IO
 	inx
-	cpx #7
+	cpx #8
 	bne counterLoop7
 
 	jsr ppu_update ; Wait until the screen has been drawn
@@ -996,7 +1005,7 @@ loop:
 
 .segment "CODE"
 .proc check_head_hit
-lda #128 ;checken the borders of the playing field
+	lda #120 ;checken the borders of the playing field
 	sec
 	sbc y_border
 	cmp oam
@@ -1008,7 +1017,7 @@ lda #128 ;checken the borders of the playing field
 	cmp oam
 	beq GAME_OVER
 
-	lda #128
+	lda #120
 	sec
 	sbc x_border
 	cmp oam + 3
