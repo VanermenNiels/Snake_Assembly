@@ -302,7 +302,7 @@ titleloop:
 	sta y_border
 
 	; place head segment
- 	lda #128
+ 	lda #127
  	sta oam ; set Y
  	lda #128
  	sta oam + 3 ; set X
@@ -332,7 +332,7 @@ titleloop:
 	asl
 	asl
 	clc
-	adc #79
+	adc #95
 	sta oam + (63 * 4)
 
 	lda #1
@@ -345,6 +345,8 @@ titleloop:
 	asl
 	asl
 	asl
+	clc
+	adc #96 
 	sta oam + (63 * 4) + 3
 
 	lda #2
@@ -639,7 +641,7 @@ loop3:
 	bne loop3
 
 	; Set the title text to use the 2nd palette entries
-	vram_set_address (ATTRIBUTE_TABLE_0_ADDRESS)
+	vram_set_address (ATTRIBUTE_TABLE_1_ADDRESS)
 	assign_16i paddr, title_attributes
 	ldy #0
 loop:
@@ -844,7 +846,7 @@ loop:
     	asl
     	asl ; *8
     	clc
-    	adc #79
+    	adc #95
     	sta temp_pickupY
 
     	jsr rand
@@ -852,6 +854,8 @@ loop:
     	asl
     	asl
     	asl ; * 8 
+		clc
+		adc #96 
     	sta temp_pickupX
 
     	; check if the temp placement collides with snake
@@ -1005,13 +1009,13 @@ loop:
 
 .segment "CODE"
 .proc check_head_hit
-	lda #120 ;checken the borders of the playing field
+	lda #119 ;checken the borders of the playing field
 	sec
 	sbc y_border
 	cmp oam
 	beq GAME_OVER
 
-	lda #128
+	lda #127
 	clc
 	adc y_border
 	cmp oam
@@ -1030,7 +1034,7 @@ loop:
 	beq GAME_OVER
 
 lda snake_size
-	sta snake_current_loop_size
+sta snake_current_loop_size
 
 	CHECK_SEGMENT_HIT:
 		lda snake_current_loop_size
