@@ -74,6 +74,9 @@ game_start: .res 1 ; used as a boolean
 
 testing: .res 1
 
+lo_bit: .res 1
+hi_bit: .res 1
+
 ;*****************************************************************
 ; Sprite OAM Data area - copied to VRAM in NMI routine
 ;*****************************************************************
@@ -93,7 +96,7 @@ oam: .res 256	; sprite OAM data
 
 .segment "BSS"
 palette: .res 32 ; current palette buffer
-segment_current_tile: .res 800 ; 2 bytes per pos: first byte for row and the second byte is for the column.
+segment_current_tile: .res 600 ; 2 bytes per pos: first byte for row and the second byte is for the column.
 
 ;*****************************************************************
 ; Main application entry point for starup/reset
@@ -192,6 +195,8 @@ wait_vblank2:
 	cpx #32
 	bcc @loop
 
+	;jsr display_snake_segment
+
 	lda #%00000001 ; has the score updated?
 	bit update
 	beq @skipscore
@@ -215,6 +220,8 @@ wait_vblank2:
 		and update
 		sta update
 @skipgameover:
+
+	
 
 	; write current scroll and control settings
 	lda #0
@@ -383,9 +390,10 @@ mainloop:
 		sta frame_timer
 		; update snake and check if head it's a segment after update 
 
-		jsr update_body
-		jsr check_head_hit
-		;jsr display_snake_segment
+		;jsr update_body
+		jsr update_body_test
+		;jsr check_head_hit
+		jsr display_snake_segment
 		;jsr update_body_test
 
 		; check if the head is on the pickup so it can place it somewhere else on a random place
@@ -548,7 +556,7 @@ title_attributes:
 	jsr write_text
 
 	; Write our press play text
-	vram_set_address (NAME_TABLE_0_ADDRESS + 16 * 32 + 6)
+	vram_set_address (NAME_TABLE_0_ADDRESS + 16 * 32 + 0)
 	assign_16i text_address, press_play_text
 	jsr write_text
 
@@ -838,7 +846,7 @@ loop:
 .proc place_pickup
 		inc snake_size ; Increment snake size
 		inc actual_snake_size
-		jsr update_body	
+		;jsr update_body	
 	PLACE_PICKUP_LOOP:
     	jsr rand
     	and #%00000111 ; Limit range to 0-7
@@ -1083,11 +1091,12 @@ sta snake_current_loop_size
 
 	UPDATE_SNAKE_BODY:
 		lda snake_current_loop_size
+		cmp #0
+		beq UPDATE_HEAD
+		lda snake_current_loop_size
 		cmp #1
 		beq UPDATE_HEAD
-			lda snake_current_loop_size
-			cmp #0
-			beq UPDATE_HEAD
+			
 			dec snake_current_loop_size
 			lda snake_current_loop_size
 			asl
@@ -1122,6 +1131,16 @@ sta snake_current_loop_size
 			jmp UPDATE_SNAKE_BODY
 
 	UPDATE_HEAD:
+		lda snake_current_loop_size
+		cmp #0
+		beq @notlast
+			lda segment_current_tile
+			sta segment_current_tile + 2
+
+			lda segment_current_tile
+			sta segment_current_tile + 3
+
+	@notlast:
 	; updating segment right before head
 		lda oam
 		lsr 
@@ -1157,41 +1176,109 @@ sta snake_current_loop_size
 	sta snake_current_loop_size
 
 	UPDATE_SNAKE_SEGMENTS:
+		
+		; update y pos
+		lda segment_current_tile
+		asl
+		asl
+		asl
+		asl
+		asl
+		sta temp_dstY_address
+
+		lda segment_current_tile + 1
+		sta temp_dstX_address
+
+		; a 
+		lda #$20
+		sta hi_bit
+
+		lda #$00
+		sta lo_bit
+
+		lda lo_bit
+		clc
+		adc temp_dstY_address
+		sta lo_bit
+
+		lda hi_bit ; om if uit te sparen
+		adc #0
+
+		lda lo_bit
+		clc
+		adc temp_dstX_address
+		sta lo_bit
+
+		lda hi_bit ; om if uit te sparen
+		adc #0
+
+		; draw a base line
+		lda PPU_STATUS
+		lda hi_bit
+		sta PPU_VRAM_ADDRESS2
+		lda lo_bit
+		sta PPU_VRAM_ADDRESS2
+		sta PPU_VRAM_IO
+
+		lda #$60
+
+		dec snake_current_loop_size
 		lda snake_current_loop_size
-		cmp #1
-		beq ERM
-		lda snake_current_loop_size
-		cmp #0
-		beq ERM
-			dec snake_current_loop_size
-			lda snake_current_loop_size
-			asl
-			sta temp_dstY_address
+		asl
+		sta temp_dstY_address
 
-			lda temp_dstY_address
-			clc
-			adc #1
-			sta temp_dstX_address
+		lda temp_dstY_address
+		clc
+		adc #1
+		sta temp_dstX_address
 
-			; update y pos
-			ldx temp_dstY_address
-			lda segment_current_tile, X
-			asl
-			asl
-			asl
-			asl
-			asl
-			sta temp_dstY_address
+		; update y pos
+		ldx temp_dstY_address
+		lda segment_current_tile, X
+		asl
+		asl
+		asl
+		asl
+		asl
+		sta temp_dstY_address
 
-			ldx temp_dstX_address
-			lda segment_current_tile, X
-			sta temp_dstX_address
+		ldx temp_dstX_address
+		lda segment_current_tile, X
+		sta temp_dstX_address
 
-			; draw a base line
-			vram_set_address (NAME_TABLE_0_ADDRESS + temp_dstY_address + temp_dstX_address) ; y x
-			lda #$60 ; tile number to repeat
-			sta PPU_VRAM_IO
-			jmp UPDATE_SNAKE_SEGMENTS
+		; a 
+		lda #$20
+		sta hi_bit
+
+		lda #$00
+		sta lo_bit
+
+		lda lo_bit
+		clc
+		adc temp_dstY_address
+		sta lo_bit
+
+		lda hi_bit ; om if uit te sparen
+		adc #0
+
+		lda lo_bit
+		clc
+		adc temp_dstX_address
+		sta lo_bit
+
+		lda hi_bit ; om if uit te sparen
+		adc #0
+
+		; draw a base line
+		lda PPU_STATUS
+		lda hi_bit
+		sta PPU_VRAM_ADDRESS2
+		lda lo_bit
+		sta PPU_VRAM_ADDRESS2
+		sta PPU_VRAM_IO
+
+		lda #$60
+
 	ERM:
 	jsr ppu_update
 	rts
