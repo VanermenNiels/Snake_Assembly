@@ -221,7 +221,15 @@ wait_vblank2:
 		sta update
 @skipgameover:
 
-	
+	lda #%00000100 ; has the score updated?
+	bit update
+	beq @skipsegment
+		jsr display_snake_segment ; display score
+		lda #%11111011 ; reset score update flag
+		and update
+		sta update
+@skipsegment:
+
 
 	; write current scroll and control settings
 	lda #0
@@ -404,8 +412,9 @@ mainloop:
 			cmp oam + (63 * 4) + 3
 			bne END_UPDATE_TIMER
 			jsr place_pickup
+
 	END_UPDATE_TIMER:
-		
+	
  	jmp mainloop
 .endproc
 ;*****************************************************************
@@ -1166,6 +1175,9 @@ sta snake_current_loop_size
 		adc d_x    ; add the X velocity
 		sta oam + 3
 
+		; lda #%00000100 ; set flag to write high score to the screen
+		; ora update
+		; sta update
 	rts
 .endproc
 
@@ -1174,21 +1186,7 @@ sta snake_current_loop_size
 	jsr ppu_off
 	lda snake_size
 	sta snake_current_loop_size
-
-	UPDATE_SNAKE_SEGMENTS:
-		
-		; update y pos
-		lda segment_current_tile
-		asl
-		asl
-		asl
-		asl
-		asl
-		sta temp_dstY_address
-
-		lda segment_current_tile + 1
-		sta temp_dstX_address
-
+	
 		; a 
 		lda #$20
 		sta hi_bit
@@ -1196,21 +1194,46 @@ sta snake_current_loop_size
 		lda #$00
 		sta lo_bit
 
-		lda lo_bit
+		; update y pos
+		lda segment_current_tile
+		lsr
+		lsr
+		lsr
+		sta temp_dstY_address
+
+		lda hi_bit
 		clc
 		adc temp_dstY_address
+		sta hi_bit
+
+		lda segment_current_tile
+		asl
+		asl
+		asl
+		asl
+		asl
 		sta lo_bit
 
-		lda hi_bit ; om if uit te sparen
-		adc #0
+		lda segment_current_tile + 1
+		sta temp_dstX_address
 
-		lda lo_bit
 		clc
-		adc temp_dstX_address
-		sta lo_bit
+		ldx lo_bit
+	loop:
+		lda temp_dstX_address
+		cmp #0
+		beq endloop
+			clc
+			inx
+			lda hi_bit
+			adc #0
+			sta hi_bit
+			clc
+			dec temp_dstX_address
+			jmp loop
 
-		lda hi_bit ; om if uit te sparen
-		adc #0
+	endloop:
+		stx lo_bit
 
 		; draw a base line
 		lda PPU_STATUS
@@ -1218,9 +1241,9 @@ sta snake_current_loop_size
 		sta PPU_VRAM_ADDRESS2
 		lda lo_bit
 		sta PPU_VRAM_ADDRESS2
-		sta PPU_VRAM_IO
 
 		lda #$60
+		sta PPU_VRAM_IO
 
 		dec snake_current_loop_size
 		lda snake_current_loop_size
@@ -1232,20 +1255,6 @@ sta snake_current_loop_size
 		adc #1
 		sta temp_dstX_address
 
-		; update y pos
-		ldx temp_dstY_address
-		lda segment_current_tile, X
-		asl
-		asl
-		asl
-		asl
-		asl
-		sta temp_dstY_address
-
-		ldx temp_dstX_address
-		lda segment_current_tile, X
-		sta temp_dstX_address
-
 		; a 
 		lda #$20
 		sta hi_bit
@@ -1253,21 +1262,49 @@ sta snake_current_loop_size
 		lda #$00
 		sta lo_bit
 
-		lda lo_bit
+		; update y pos
+		ldx temp_dstY_address
+		lda segment_current_tile, X
+		lsr
+		lsr
+		lsr
+		sta temp_srcY_address
+
+		lda hi_bit
 		clc
-		adc temp_dstY_address
+		adc temp_srcY_address
+		sta hi_bit
+
+		ldx temp_dstY_address
+		lda segment_current_tile, X
+		asl
+		asl
+		asl
+		asl
+		asl
 		sta lo_bit
 
-		lda hi_bit ; om if uit te sparen
-		adc #0
+		ldx temp_dstX_address
+		lda segment_current_tile, X
+		sta temp_dstX_address
 
-		lda lo_bit
+		ldx lo_bit
 		clc
-		adc temp_dstX_address
-		sta lo_bit
+	loop2:
+		lda temp_dstX_address
+		cmp #0
+		beq endloop2
+			clc
+			inx
+			lda hi_bit
+			adc #0
+			sta hi_bit
+			clc
+			dec temp_dstX_address
+			jmp loop2
 
-		lda hi_bit ; om if uit te sparen
-		adc #0
+	endloop2:
+		stx lo_bit
 
 		; draw a base line
 		lda PPU_STATUS
@@ -1275,9 +1312,9 @@ sta snake_current_loop_size
 		sta PPU_VRAM_ADDRESS2
 		lda lo_bit
 		sta PPU_VRAM_ADDRESS2
-		sta PPU_VRAM_IO
 
-		lda #$60
+		lda #$0
+		sta PPU_VRAM_IO
 
 	ERM:
 	jsr ppu_update
