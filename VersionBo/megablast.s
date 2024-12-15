@@ -71,6 +71,7 @@ y_border: .res 4
 
 game_over:  .res 1 ; used as a boolean
 game_start: .res 1 ; used as a boolean
+just_picked_up: .res 1 ; just picked up food
 
 testing: .res 1
 
@@ -195,8 +196,6 @@ wait_vblank2:
 	cpx #32
 	bcc @loop
 
-	;jsr display_snake_segment
-
 	lda #%00000001 ; has the score updated?
 	bit update
 	beq @skipscore
@@ -221,15 +220,25 @@ wait_vblank2:
 		sta update
 @skipgameover:
 
-	lda #%00000100 ; has the score updated?
-	bit update
-	beq @skipsegment
-		jsr display_snake_segment ; display score
-		lda #%11111011 ; reset score update flag
-		and update
-		sta update
-@skipsegment:
+; ;jsr display_snake_segment
+; 	lda #%00000100 ; has the score updated?
+; 	bit update
+; 	beq @skipsegment
+; 		jsr delete_tail_draw_segments
+; 		jsr update_body_test
+; 		jsr display_snake_segment ; display score
+; 		lda #%11111011 ; reset score update flag
+; 		and update
+; 		sta update
+; @skipsegment:
 
+	lda frame_timer
+	cmp #10
+	bne END_UPDATE_TIMER
+		jsr delete_tail_draw_segments
+		jsr display_snake_segment
+
+END_UPDATE_TIMER:
 
 	; write current scroll and control settings
 	lda #0
@@ -327,15 +336,20 @@ titleloop:
  	sta oam + 2 ; set attributes
 
 	; place body segment 
-	lda #8
-	sta segment_current_tile
-	lda #1
-	sta segment_current_tile + 1
+	; lda #8
+	; sta segment_current_tile
+	; lda #1
+	; sta segment_current_tile + 1
 
-	lda #8
-	sta segment_current_tile
-	lda #0
-	sta segment_current_tile + 1
+	; lda #8
+	; sta segment_current_tile
+	; lda #0
+	; sta segment_current_tile + 1
+
+	; lda #8
+	; sta segment_current_tile
+	; lda #0
+	; sta segment_current_tile + 1
 
 	; draw the game screen
 	jsr display_game_screen
@@ -370,6 +384,15 @@ titleloop:
 	lda #3
 	sta actual_snake_size
 
+; 	vram_set_address(NAME_TABLE_0_ADDRESS + 16 * 32 + 14)
+; 	lda #$60
+; 	ldy #0
+; snake_loop:
+; 	sta PPU_VRAM_IO
+; 	iny
+; 	cpy #2
+; 	bne snake_loop
+
 	jsr ppu_update
 
 mainloop:
@@ -398,11 +421,23 @@ mainloop:
 		sta frame_timer
 		; update snake and check if head it's a segment after update 
 
-		;jsr update_body
+		; lda just_picked_up
+		; cmp #1
+		; beq NOT_DELETE
+		; 	jsr delete_tail_draw_segments
+		; NOT_DELETE:
+
+		; lda #0
+		; sta just_picked_up
+		; ;jsr update_body
 		jsr update_body_test
-		;jsr check_head_hit
-		jsr display_snake_segment
-		;jsr update_body_test
+		; ;jsr check_head_hit
+		; jsr display_snake_segment
+		; ;jsr update_body_test
+
+		; lda #%00000100 ; set flag to write high score to the screen
+		; ora update
+		; sta update 
 
 		; check if the head is on the pickup so it can place it somewhere else on a random place
 		lda oam
@@ -658,88 +693,88 @@ loop3:
 	bne loop3
 
 	; Set the title text to use the 2nd palette entries
-	vram_set_address (ATTRIBUTE_TABLE_1_ADDRESS)
-	assign_16i paddr, title_attributes
-	ldy #0
-loop:
-	lda (paddr),y
-	sta PPU_VRAM_IO
-	iny
-	cpy #8
-	bne loop
+; 	vram_set_address (ATTRIBUTE_TABLE_1_ADDRESS)
+; 	assign_16i paddr, title_attributes
+; 	ldy #0
+; loop:
+; 	lda (paddr),y
+; 	sta PPU_VRAM_IO
+; 	iny
+; 	cpy #8
+; 	bne loop
 
-	; Draw the playing field
-	vram_set_address (NAME_TABLE_0_ADDRESS +12 * 32 + 12)
-	ldx #0
-	lda #$60
-	counterLoop8:
-	sta PPU_VRAM_IO
-	inx
-	cpx #8
-	bne counterLoop8
+	; ; Draw the playing field
+	; vram_set_address (NAME_TABLE_0_ADDRESS +12 * 32 + 12)
+	; ldx #0
+	; lda #$60
+	; counterLoop8:
+	; sta PPU_VRAM_IO
+	; inx
+	; cpx #8
+	; bne counterLoop8
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +13 * 32 + 12)
-	ldx #0
-	lda #$60
-	counterLoop1:
-	sta PPU_VRAM_IO
-	inx
-	cpx #8
-	bne counterLoop1
+	; vram_set_address (NAME_TABLE_0_ADDRESS +13 * 32 + 12)
+	; ldx #0
+	; lda #$60
+	; counterLoop1:
+	; sta PPU_VRAM_IO
+	; inx
+	; cpx #8
+	; bne counterLoop1
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +14 * 32 + 12)
-	ldx #0
-	lda #$60
-	counterLoop2:
-		sta PPU_VRAM_IO
-	inx
-	cpx #8
-	bne counterLoop2
+	; vram_set_address (NAME_TABLE_0_ADDRESS +14 * 32 + 12)
+	; ldx #0
+	; lda #$60
+	; counterLoop2:
+	; 	sta PPU_VRAM_IO
+	; inx
+	; cpx #8
+	; bne counterLoop2
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +15 * 32 + 12)
-	ldx #0
-	lda #$60
-	counterLoop3:
-		sta PPU_VRAM_IO
-	inx
-	cpx #8
-	bne counterLoop3
+	; vram_set_address (NAME_TABLE_0_ADDRESS +15 * 32 + 12)
+	; ldx #0
+	; lda #$60
+	; counterLoop3:
+	; 	sta PPU_VRAM_IO
+	; inx
+	; cpx #8
+	; bne counterLoop3
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +16 * 32 + 12)
-	ldx #0
-	lda #$60
-	counterLoop4:
-		sta PPU_VRAM_IO
-	inx
-	cpx #8
-	bne counterLoop4
+	; vram_set_address (NAME_TABLE_0_ADDRESS +16 * 32 + 12)
+	; ldx #0
+	; lda #$60
+	; counterLoop4:
+	; 	sta PPU_VRAM_IO
+	; inx
+	; cpx #8
+	; bne counterLoop4
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +17 * 32 + 12)
-	ldx #0
-	lda #$60
-	counterLoop5:
-		sta PPU_VRAM_IO
-	inx
-	cpx #8
-	bne counterLoop5
+	; vram_set_address (NAME_TABLE_0_ADDRESS +17 * 32 + 12)
+	; ldx #0
+	; lda #$60
+	; counterLoop5:
+	; 	sta PPU_VRAM_IO
+	; inx
+	; cpx #8
+	; bne counterLoop5
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +18 * 32 + 12)
-	ldx #0
-	lda #$60
-	counterLoop6:
-		sta PPU_VRAM_IO
-	inx
-	cpx #8
-	bne counterLoop6
+	; vram_set_address (NAME_TABLE_0_ADDRESS +18 * 32 + 12)
+	; ldx #0
+	; lda #$60
+	; counterLoop6:
+	; 	sta PPU_VRAM_IO
+	; inx
+	; cpx #8
+	; bne counterLoop6
 
-	vram_set_address (NAME_TABLE_0_ADDRESS +19 * 32 + 12)
-	ldx #0
-	lda #$60
-	counterLoop7:
-		sta PPU_VRAM_IO
-	inx
-	cpx #8
-	bne counterLoop7
+	; vram_set_address (NAME_TABLE_0_ADDRESS +19 * 32 + 12)
+	; ldx #0
+	; lda #$60
+	; counterLoop7:
+	; 	sta PPU_VRAM_IO
+	; inx
+	; cpx #8
+	; bne counterLoop7
 
 	jsr ppu_update ; Wait until the screen has been drawn
 	rts
@@ -804,9 +839,9 @@ loop:
 	;lda score+2
 	;sta highscore+2
 
-	lda #%00000010 ; set flag to write high score to the screen
-	ora update
-	sta update
+	; lda #%00000010 ; set flag to write high score to the screen
+	; ora update
+	; sta update
 
 @nothighscore:
 	rts
@@ -855,6 +890,10 @@ loop:
 .proc place_pickup
 		inc snake_size ; Increment snake size
 		inc actual_snake_size
+
+		lda #1
+		sta just_picked_up
+
 		;jsr update_body	
 	PLACE_PICKUP_LOOP:
     	jsr rand
@@ -1097,16 +1136,16 @@ sta snake_current_loop_size
 .proc update_body_test
 	lda snake_size
 	sta snake_current_loop_size
-
+	dec snake_current_loop_size
 	UPDATE_SNAKE_BODY:
+		; lda snake_current_loop_size
+		; cmp #0
+		; beq UPDATE_HEAD
+		clc
 		lda snake_current_loop_size
 		cmp #0
 		beq UPDATE_HEAD
-		lda snake_current_loop_size
-		cmp #1
-		beq UPDATE_HEAD
 			
-			dec snake_current_loop_size
 			lda snake_current_loop_size
 			asl
 			sta temp_dstY_address
@@ -1140,14 +1179,14 @@ sta snake_current_loop_size
 			jmp UPDATE_SNAKE_BODY
 
 	UPDATE_HEAD:
-		lda snake_current_loop_size
-		cmp #0
-		beq @notlast
-			lda segment_current_tile
-			sta segment_current_tile + 2
+		; lda snake_current_loop_size
+		; cmp #0
+		; beq @notlast
+		; 	lda segment_current_tile
+		; 	sta segment_current_tile + 2
 
-			lda segment_current_tile
-			sta segment_current_tile + 3
+		; 	lda segment_current_tile
+		; 	sta segment_current_tile + 3
 
 	@notlast:
 	; updating segment right before head
@@ -1155,6 +1194,8 @@ sta snake_current_loop_size
 		lsr 
 		lsr
 		lsr
+		clc
+		adc #1
 		sta segment_current_tile
 
 		lda oam + 3
@@ -1175,6 +1216,48 @@ sta snake_current_loop_size
 		adc d_x    ; add the X velocity
 		sta oam + 3
 
+		lda d_y
+		cmp #0
+		beq X_RTOTATION
+		clc
+
+		lda #2
+		sta oam + 1
+
+		lda #%00000010
+		sta oam + 2
+
+		lda d_y
+		cmp #$08
+		bne X_RTOTATION
+
+		lda #%10000010
+		sta oam + 2
+
+		jmp END
+
+
+		X_RTOTATION:
+		lda d_x
+		cmp #0
+		beq END
+		clc
+
+		lda #3
+		sta oam + 1
+
+		lda #%00000010
+		sta oam + 2
+
+		lda d_x
+		cmp #$F8
+		bne END
+
+		lda #%01000010
+		sta oam + 2
+
+	END:
+
 		; lda #%00000100 ; set flag to write high score to the screen
 		; ora update
 		; sta update
@@ -1183,10 +1266,8 @@ sta snake_current_loop_size
 
 .segment "CODE"
 .proc display_snake_segment
-	jsr ppu_off
-	lda snake_size
-	sta snake_current_loop_size
-	
+	;jsr ppu_off
+
 		; a 
 		lda #$20
 		sta hi_bit
@@ -1217,23 +1298,28 @@ sta snake_current_loop_size
 		lda segment_current_tile + 1
 		sta temp_dstX_address
 
-		clc
-		ldx lo_bit
-	loop:
-		lda temp_dstX_address
-		cmp #0
-		beq endloop
-			clc
-			inx
-			lda hi_bit
-			adc #0
-			sta hi_bit
-			clc
-			dec temp_dstX_address
-			jmp loop
+	; 	clc
+	; 	ldx lo_bit
+	; loop:
+	; 	lda temp_dstX_address
+	; 	cmp #0
+	; 	beq endloop
+	; 		clc
+	; 		inx
+	; 		lda hi_bit
+	; 		adc #0
+	; 		sta hi_bit
+	; 		clc
+	; 		dec temp_dstX_address
+	; 		jmp loop
 
-	endloop:
-		stx lo_bit
+	; endloop:
+	; 	stx lo_bit
+
+		lda lo_bit
+		clc
+		adc temp_dstX_address
+		sta lo_bit
 
 		; draw a base line
 		lda PPU_STATUS
@@ -1245,6 +1331,33 @@ sta snake_current_loop_size
 		lda #$60
 		sta PPU_VRAM_IO
 
+	;jsr ppu_update
+	;vram_clear_address
+	rts
+
+.endproc
+
+.segment "CODE"
+.proc clear_sprites
+;
+lda #255
+ldx #0
+clear_oam:
+sta oam,x
+inx
+inx
+inx
+inx
+bne clear_oam
+rts
+.endproc
+
+.segment "CODE"
+.proc delete_tail_draw_segments
+	;jsr ppu_off
+	lda snake_size
+	sta snake_current_loop_size
+	
 		dec snake_current_loop_size
 		lda snake_current_loop_size
 		asl
@@ -1263,8 +1376,8 @@ sta snake_current_loop_size
 		sta lo_bit
 
 		; update y pos
-		ldx temp_dstY_address
-		lda segment_current_tile, X
+		ldy temp_dstY_address
+		lda segment_current_tile, Y
 		lsr
 		lsr
 		lsr
@@ -1275,8 +1388,8 @@ sta snake_current_loop_size
 		adc temp_srcY_address
 		sta hi_bit
 
-		ldx temp_dstY_address
-		lda segment_current_tile, X
+		ldy temp_dstY_address
+		lda segment_current_tile, Y
 		asl
 		asl
 		asl
@@ -1288,23 +1401,28 @@ sta snake_current_loop_size
 		lda segment_current_tile, X
 		sta temp_dstX_address
 
-		ldx lo_bit
-		clc
-	loop2:
-		lda temp_dstX_address
-		cmp #0
-		beq endloop2
-			clc
-			inx
-			lda hi_bit
-			adc #0
-			sta hi_bit
-			clc
-			dec temp_dstX_address
-			jmp loop2
+	; 	ldx lo_bit
+	; 	clc
+	; loop2:
+	; 	lda temp_dstX_address
+	; 	cmp #0
+	; 	beq endloop2
+	; 		clc
+	; 		inx
+	; 		lda hi_bit
+	; 		adc #0
+	; 		sta hi_bit
+	; 		clc
+	; 		dec temp_dstX_address
+	; 		jmp loop2
 
-	endloop2:
-		stx lo_bit
+	; endloop2:
+	; 	stx lo_bit
+
+	lda lo_bit
+	clc
+	adc temp_dstX_address
+	sta lo_bit
 
 		; draw a base line
 		lda PPU_STATUS
@@ -1316,24 +1434,8 @@ sta snake_current_loop_size
 		lda #$0
 		sta PPU_VRAM_IO
 
-	ERM:
-	jsr ppu_update
-	rts
-
-.endproc
-
-.segment "CODE"
-.proc clear_sprites
-;
-lda #255
-ldx #0
-clear_oam:
-sta oam,x
-inx
-inx
-inx
-inx
-bne clear_oam
+	;jsr ppu_update
+	;vram_clear_address
 rts
 .endproc
 
