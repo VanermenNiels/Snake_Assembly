@@ -233,10 +233,9 @@ wait_vblank2:
 ; @skipsegment:
 
 	lda frame_timer
-	cmp #1
+	cmp #10
 	bne END_UPDATE_TIMER
 		jsr delete_tail_draw_segments
-		jsr update_body_test
 		jsr display_snake_segment
 
 END_UPDATE_TIMER:
@@ -379,20 +378,20 @@ titleloop:
 	adc #96 
 	sta oam + (63 * 4) + 3
 
-	lda #4
+	lda #2
 	sta snake_size
 	
 	lda #3
 	sta actual_snake_size
 
-	vram_set_address(NAME_TABLE_0_ADDRESS + 16 * 32 + 14)
-	lda #$60
-	ldy #0
-snake_loop:
-	sta PPU_VRAM_IO
-	iny
-	cpy #2
-	bne snake_loop
+; 	vram_set_address(NAME_TABLE_0_ADDRESS + 16 * 32 + 14)
+; 	lda #$60
+; 	ldy #0
+; snake_loop:
+; 	sta PPU_VRAM_IO
+; 	iny
+; 	cpy #2
+; 	bne snake_loop
 
 	jsr ppu_update
 
@@ -431,7 +430,7 @@ mainloop:
 		; lda #0
 		; sta just_picked_up
 		; ;jsr update_body
-		; jsr update_body_test
+		jsr update_body_test
 		; ;jsr check_head_hit
 		; jsr display_snake_segment
 		; ;jsr update_body_test
@@ -1217,6 +1216,48 @@ sta snake_current_loop_size
 		adc d_x    ; add the X velocity
 		sta oam + 3
 
+		lda d_y
+		cmp #0
+		beq X_RTOTATION
+		clc
+
+		lda #2
+		sta oam + 1
+
+		lda #%00000010
+		sta oam + 2
+
+		lda d_y
+		cmp #$08
+		bne X_RTOTATION
+
+		lda #%10000010
+		sta oam + 2
+
+		jmp END
+
+
+		X_RTOTATION:
+		lda d_x
+		cmp #0
+		beq END
+		clc
+
+		lda #3
+		sta oam + 1
+
+		lda #%00000010
+		sta oam + 2
+
+		lda d_x
+		cmp #$F8
+		bne END
+
+		lda #%01000010
+		sta oam + 2
+
+	END:
+
 		; lda #%00000100 ; set flag to write high score to the screen
 		; ora update
 		; sta update
@@ -1257,23 +1298,28 @@ sta snake_current_loop_size
 		lda segment_current_tile + 1
 		sta temp_dstX_address
 
-		clc
-		ldx lo_bit
-	loop:
-		lda temp_dstX_address
-		cmp #0
-		beq endloop
-			clc
-			inx
-			lda hi_bit
-			adc #0
-			sta hi_bit
-			clc
-			dec temp_dstX_address
-			jmp loop
+	; 	clc
+	; 	ldx lo_bit
+	; loop:
+	; 	lda temp_dstX_address
+	; 	cmp #0
+	; 	beq endloop
+	; 		clc
+	; 		inx
+	; 		lda hi_bit
+	; 		adc #0
+	; 		sta hi_bit
+	; 		clc
+	; 		dec temp_dstX_address
+	; 		jmp loop
 
-	endloop:
-		stx lo_bit
+	; endloop:
+	; 	stx lo_bit
+
+		lda lo_bit
+		clc
+		adc temp_dstX_address
+		sta lo_bit
 
 		; draw a base line
 		lda PPU_STATUS
@@ -1355,23 +1401,28 @@ rts
 		lda segment_current_tile, X
 		sta temp_dstX_address
 
-		ldx lo_bit
-		clc
-	loop2:
-		lda temp_dstX_address
-		cmp #0
-		beq endloop2
-			clc
-			inx
-			lda hi_bit
-			adc #0
-			sta hi_bit
-			clc
-			dec temp_dstX_address
-			jmp loop2
+	; 	ldx lo_bit
+	; 	clc
+	; loop2:
+	; 	lda temp_dstX_address
+	; 	cmp #0
+	; 	beq endloop2
+	; 		clc
+	; 		inx
+	; 		lda hi_bit
+	; 		adc #0
+	; 		sta hi_bit
+	; 		clc
+	; 		dec temp_dstX_address
+	; 		jmp loop2
 
-	endloop2:
-		stx lo_bit
+	; endloop2:
+	; 	stx lo_bit
+
+	lda lo_bit
+	clc
+	adc temp_dstX_address
+	sta lo_bit
 
 		; draw a base line
 		lda PPU_STATUS
