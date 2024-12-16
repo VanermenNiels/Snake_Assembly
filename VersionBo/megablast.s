@@ -1687,7 +1687,7 @@ rts
 
 .segment "RODATA"
 default_palette:
-.byte $0F,$15,$26,$29 ; bg0 purple/pink
+.byte $0F,$19,$29,$29 ; bg0 green
 .byte $0F,$19,$29,$39 ; bg1 green
 .byte $0F,$11,$21,$31 ; bg2 blue
 .byte $0F,$00,$10,$30 ; bg3 greyscale
