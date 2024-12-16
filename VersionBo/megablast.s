@@ -710,12 +710,12 @@ paddr2: .res 2 ; 16-bit address pointer
 
 	; output the score section on the next line
 	; Write our title text
-	vram_set_address (NAME_TABLE_0_ADDRESS + 0 * 32 + 0)
+	vram_set_address (NAME_TABLE_0_ADDRESS + 0 * 32 + 1)
 	assign_16i text_address, game_screen_scoreline
 	jsr write_text
 
 	; output the score section on the next line
-	vram_set_address (NAME_TABLE_0_ADDRESS + 0 * 32 + 14)
+	vram_set_address (NAME_TABLE_0_ADDRESS + 1 * 32 + 14)
 	assign_16i text_address, game_screen_high_score
 	jsr write_text
 
@@ -1042,7 +1042,7 @@ paddr2: .res 2 ; 16-bit address pointer
 .segment "CODE"
 
 .proc display_score
-	vram_set_address ($2000 + 0 * 32 + 6)
+	vram_set_address ($2000 + 0 * 32 + 7)
 
 	lda score+2 ; transform each decimal digit of the score
 	jsr dec99_to_bytes
@@ -1081,7 +1081,7 @@ paddr2: .res 2 ; 16-bit address pointer
 .segment "CODE"
 
 .proc display_highscore
-	vram_set_address (NAME_TABLE_0_ADDRESS + 0 * 32 + 24)
+	vram_set_address (NAME_TABLE_0_ADDRESS + 1 * 32 + 24)
 
 	lda highscore+2 ; transform each decimal digit of the high score
 	jsr dec99_to_bytes
@@ -1687,7 +1687,7 @@ rts
 
 .segment "RODATA"
 default_palette:
-.byte $0F,$19,$29,$29 ; bg0 green
+.byte $0F,$19,$39,$29 ; bg0 green
 .byte $0F,$19,$29,$39 ; bg1 green
 .byte $0F,$11,$21,$31 ; bg2 blue
 .byte $0F,$00,$10,$30 ; bg3 greyscale
