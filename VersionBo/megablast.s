@@ -47,6 +47,7 @@ d_y:					 .res 1 ; y direction of ball
 frame_timer: 			 .res 1 ; frame timer
 
 score: 					 .res 3
+highscore:				 .res 3
 update: 				 .res 1
 
 temp: .res 10
@@ -204,6 +205,15 @@ wait_vblank2:
 		and update
 		sta update
 @skipscore:
+	lda #%00000010 ; has the high score updated?
+	bit update
+	beq @skiphighscore
+		jsr display_highscore ; display high score
+		lda #%11111101 ; reset high score update flag
+		and update
+		sta update
+@skiphighscore:
+
 	lda #%00001000 ; does the game over message need to be displayed?
 	bit update
 	beq @skipgameover
@@ -214,6 +224,9 @@ wait_vblank2:
 		vram_set_address (NAME_TABLE_0_ADDRESS + 29 * 32 + 7)
 		assign_16i text_address, restart_text 
 		jsr write_text
+
+		lda highscore
+		sta BATTERY_RAM
 
 		lda #%11110111 ; reset game over message update flag
 		and update
@@ -323,6 +336,9 @@ titleloop:
 	sta score+1
 	sta score+2
 
+	lda BATTERY_RAM
+	sta highscore
+
 	lda #32 ; define borders
 	sta x_border
 	lda #32
@@ -340,6 +356,8 @@ titleloop:
 
 	; draw the game screen
 	jsr display_game_screen
+
+	jsr display_highscore
 
 	; place food
 	jsr rand
@@ -670,7 +688,10 @@ game_screen_mountain:
 .byte 001,002,003,004,001,002,003,004,001,002,003,004,001,002,003,004
 .byte 001,002,003,004,001,002,003,004,001,002,003,004,001,002,003,004
 game_screen_scoreline:
-.byte "SCORE 0000000"
+.byte "SCORE 0000000", 0
+
+game_screen_high_score:
+.byte "HIGHSCORE 0000000", 0
 
 score_attributes:
 .byte %00000101,%00000101,%00000101,%00000101
@@ -679,6 +700,7 @@ score_attributes:
 .segment "ZEROPAGE"
 
 paddr: .res 2 ; 16-bit address pointer
+paddr2: .res 2 ; 16-bit address pointer
 
 .segment "CODE"
 .proc display_game_screen
@@ -687,14 +709,15 @@ paddr: .res 2 ; 16-bit address pointer
 	jsr clear_nametable ; Clear the 1st name table
 
 	; output the score section on the next line
-	assign_16i paddr, game_screen_scoreline
-	ldy #0
-loop3:
-	lda (paddr),y
-	sta PPU_VRAM_IO
-	iny
-	cpy #13
-	bne loop3
+	; Write our title text
+	vram_set_address (NAME_TABLE_0_ADDRESS + 0 * 32 + 0)
+	assign_16i text_address, game_screen_scoreline
+	jsr write_text
+
+	; output the score section on the next line
+	vram_set_address (NAME_TABLE_0_ADDRESS + 0 * 32 + 14)
+	assign_16i text_address, game_screen_high_score
+	jsr write_text
 
 	; Set the title text to use the 2nd palette entries
 ; 	vram_set_address (ATTRIBUTE_TABLE_1_ADDRESS)
@@ -942,69 +965,6 @@ loop3:
 	lda #$07
 	sta PPU_VRAM_IO
 
-	; vram_set_address (NAME_TABLE_0_ADDRESS +13 * 32 + 12)
-	; ldx #0
-	; lda #$60
-	; counterLoop1:
-	; sta PPU_VRAM_IO
-	; inx
-	; cpx #8
-	; bne counterLoop1
-
-	; vram_set_address (NAME_TABLE_0_ADDRESS +14 * 32 + 12)
-	; ldx #0
-	; lda #$60
-	; counterLoop2:
-	; 	sta PPU_VRAM_IO
-	; inx
-	; cpx #8
-	; bne counterLoop2
-
-	; vram_set_address (NAME_TABLE_0_ADDRESS +15 * 32 + 12)
-	; ldx #0
-	; lda #$60
-	; counterLoop3:
-	; 	sta PPU_VRAM_IO
-	; inx
-	; cpx #8
-	; bne counterLoop3
-
-	; vram_set_address (NAME_TABLE_0_ADDRESS +16 * 32 + 12)
-	; ldx #0
-	; lda #$60
-	; counterLoop4:
-	; 	sta PPU_VRAM_IO
-	; inx
-	; cpx #8
-	; bne counterLoop4
-
-	; vram_set_address (NAME_TABLE_0_ADDRESS +17 * 32 + 12)
-	; ldx #0
-	; lda #$60
-	; counterLoop5:
-	; 	sta PPU_VRAM_IO
-	; inx
-	; cpx #8
-	; bne counterLoop5
-
-	; vram_set_address (NAME_TABLE_0_ADDRESS +18 * 32 + 12)
-	; ldx #0
-	; lda #$60
-	; counterLoop6:
-	; 	sta PPU_VRAM_IO
-	; inx
-	; cpx #8
-	; bne counterLoop6
-
-	; vram_set_address (NAME_TABLE_0_ADDRESS +19 * 32 + 12)
-	; ldx #0
-	; lda #$60
-	; counterLoop7:
-	; 	sta PPU_VRAM_IO
-	; inx
-	; cpx #8
-	; bne counterLoop7
-
 	jsr ppu_update ; Wait until the screen has been drawn
 	rts
 .endproc
@@ -1046,31 +1006,31 @@ loop3:
 	ora update
 	sta update
 
-	;lda highscore+2
-	;cmp score+2
-	;bcc @highscore
-	;bne @nothighscore
+	lda highscore+2
+	cmp score+2
+	bcc @highscore
+	bne @nothighscore
 
-	;lda highscore+1
-	;cmp score+1
-	;bcc @highscore
-	;bne @nothighscore
+	lda highscore+1
+	cmp score+1
+	bcc @highscore
+	bne @nothighscore
 
-	;lda highscore
-	;cmp score
-	;bcs @nothighscore
+	lda highscore
+	cmp score
+	bcs @nothighscore
 
-;@highscore:
-	;lda score
-	;sta highscore
-	;lda score+1
-	;sta highscore+1
-	;lda score+2
-	;sta highscore+2
+@highscore:
+	lda score
+	sta highscore
+	lda score+1
+	sta highscore+1
+	lda score+2
+	sta highscore+2
 
-	; lda #%00000010 ; set flag to write high score to the screen
-	; ora update
-	; sta update
+	lda #%00000010 ; set flag to write high score to the screen
+	ora update
+	sta update
 
 @nothighscore:
 	rts
@@ -1095,6 +1055,45 @@ loop3:
 	sta temp+3
 
 	lda score
+	jsr dec99_to_bytes
+	stx temp+4
+	sta temp+5
+
+	ldx #0 ; write the six characters to the screen
+@loop:
+	lda temp,x
+	clc
+	adc #48
+	sta PPU_VRAM_IO
+	inx
+	cpx #6
+	bne @loop
+	lda #48 ; write trailing zero
+	sta PPU_VRAM_IO
+
+	vram_clear_address
+	rts
+.endproc
+
+;*****************************************************************
+; display_highscore: Write the high score to the screen
+;*****************************************************************
+.segment "CODE"
+
+.proc display_highscore
+	vram_set_address (NAME_TABLE_0_ADDRESS + 0 * 32 + 24)
+
+	lda highscore+2 ; transform each decimal digit of the high score
+	jsr dec99_to_bytes
+	stx temp
+	sta temp+1
+
+	lda highscore+1
+	jsr dec99_to_bytes
+	stx temp+2
+	sta temp+3
+
+	lda highscore
 	jsr dec99_to_bytes
 	stx temp+4
 	sta temp+5

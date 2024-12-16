@@ -62,6 +62,8 @@ ATTRIBUTE_TABLE_0_ADDRESS	= $23C0
 NAME_TABLE_1_ADDRESS		= $2400
 ATTRIBUTE_TABLE_1_ADDRESS	= $27C0
 
+BATTERY_RAM = $6000
+
 .segment "ZEROPAGE"
 
 nmi_ready:		.res 1 ; set to 1 to push a PPU frame update, 
