@@ -248,6 +248,10 @@ wait_vblank2:
 	cmp #1
 	beq END_UPDATE_TIMER
 
+	lda game_start
+	cmp #0
+	beq END_UPDATE_TIMER
+
 	lda frame_timer
 	cmp #1
 	bne END_UPDATE_TIMER
@@ -625,20 +629,6 @@ title_attributes:
 	vram_set_address (NAME_TABLE_0_ADDRESS + 16 * 32 + 0)
 	assign_16i text_address, press_play_text
 	jsr write_text
-
-	; draw a base line
-
-
-	; Set the title text to use the 2nd palette entries
-	vram_set_address (ATTRIBUTE_TABLE_0_ADDRESS + 32)
-	assign_16i paddr, title_attributes
-	ldy #0
-loop:
-	lda (paddr),y
-	sta PPU_VRAM_IO
-	iny
-	cpy #5
-	bne loop
 
 	jsr ppu_update ; Wait until the screen has been drawn
 
@@ -1314,6 +1304,20 @@ paddr2: .res 2 ; 16-bit address pointer
 
 .segment "CODE"
 .proc check_head_hit
+lda oam
+clc
+adc #1
+cmp #216
+beq GAME_OVER
+cmp #16
+beq GAME_OVER
+
+lda oam + 3
+cmp #24
+beq GAME_OVER
+cmp #224
+beq GAME_OVER
+
 lda snake_size
 sta snake_current_loop_size
 
