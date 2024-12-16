@@ -207,11 +207,11 @@ wait_vblank2:
 	lda #%00001000 ; does the game over message need to be displayed?
 	bit update
 	beq @skipgameover
-		vram_set_address (NAME_TABLE_0_ADDRESS + 8 * 32 + 7)
+		vram_set_address (NAME_TABLE_0_ADDRESS + 28 * 32 + 7)
 		assign_16i text_address, game_over_text 
 		jsr write_text
 
-		vram_set_address (NAME_TABLE_0_ADDRESS + 9 * 32 + 7)
+		vram_set_address (NAME_TABLE_0_ADDRESS + 29 * 32 + 7)
 		assign_16i text_address, restart_text 
 		jsr write_text
 
@@ -231,9 +231,12 @@ wait_vblank2:
 ; 		and update
 ; 		sta update
 ; @skipsegment:
+	lda game_over
+	cmp #1
+	beq END_UPDATE_TIMER
 
 	lda frame_timer
-	cmp #10
+	cmp #1
 	bne END_UPDATE_TIMER
 		jsr delete_tail_draw_segments
 		jsr display_snake_segment
@@ -335,22 +338,6 @@ titleloop:
  	lda #2
  	sta oam + 2 ; set attributes
 
-	; place body segment 
-	; lda #8
-	; sta segment_current_tile
-	; lda #1
-	; sta segment_current_tile + 1
-
-	; lda #8
-	; sta segment_current_tile
-	; lda #0
-	; sta segment_current_tile + 1
-
-	; lda #8
-	; sta segment_current_tile
-	; lda #0
-	; sta segment_current_tile + 1
-
 	; draw the game screen
 	jsr display_game_screen
 
@@ -378,7 +365,7 @@ titleloop:
 	adc #96 
 	sta oam + (63 * 4) + 3
 
-	lda #2
+	lda #3
 	sta snake_size
 	
 	lda #3
@@ -430,8 +417,9 @@ mainloop:
 		; lda #0
 		; sta just_picked_up
 		; ;jsr update_body
+		jsr check_head_hit
 		jsr update_body_test
-		; ;jsr check_head_hit
+		
 		; jsr display_snake_segment
 		; ;jsr update_body_test
 
@@ -465,7 +453,12 @@ mainloop:
  	beq NOT_GAMEPAD_LEFT
  		; gamepad has been pressed left
 		lda oam
-		cmp oam + 4
+		clc
+		adc #1
+		lsr
+		lsr
+		lsr
+		cmp segment_current_tile
 		beq NOT_GAMEPAD_LEFT
 
 		lda d_x
@@ -491,7 +484,12 @@ NOT_GAMEPAD_LEFT:
  	and #PAD_R
  	beq NOT_GAMEPAD_RIGHT
 		lda oam
-		cmp oam + 4
+		clc
+		adc #1
+		lsr
+		lsr
+		lsr
+		cmp segment_current_tile
 		beq NOT_GAMEPAD_RIGHT
 
 		lda d_x
@@ -516,7 +514,10 @@ lda gamepad
      and #PAD_U
      beq NOT_GAMEPAD_UP
 	 	lda oam + 3
-		cmp oam + 7
+		lsr
+		lsr
+		lsr
+		cmp segment_current_tile + 1
 		beq NOT_GAMEPAD_UP
 
 	 	lda d_y
@@ -543,7 +544,10 @@ lda gamepad
      and #PAD_D
      beq NOT_GAMEPAD_DOWN
 	 	lda oam + 3
-		cmp oam + 7
+		lsr
+		lsr
+		lsr
+		cmp segment_current_tile + 1
 		beq NOT_GAMEPAD_DOWN
 
 	 	lda d_y
@@ -636,7 +640,7 @@ restart_text:
 
 	
 	; Write our title text
-	vram_set_address (NAME_TABLE_0_ADDRESS + 4 * 32 + 6)
+	vram_set_address (NAME_TABLE_0_ADDRESS + 28 * 32 + 6)
 	assign_16i text_address, game_over_text
 	jsr write_text
 
@@ -666,7 +670,7 @@ game_screen_mountain:
 .byte 001,002,003,004,001,002,003,004,001,002,003,004,001,002,003,004
 .byte 001,002,003,004,001,002,003,004,001,002,003,004,001,002,003,004
 game_screen_scoreline:
-.byte "SCORE 000"
+.byte "SCORE 0000000"
 
 score_attributes:
 .byte %00000101,%00000101,%00000101,%00000101
@@ -703,15 +707,240 @@ loop3:
 ; 	cpy #8
 ; 	bne loop
 
-	; ; Draw the playing field
-	; vram_set_address (NAME_TABLE_0_ADDRESS +12 * 32 + 12)
-	; ldx #0
-	; lda #$60
-	; counterLoop8:
-	; sta PPU_VRAM_IO
-	; inx
-	; cpx #8
-	; bne counterLoop8
+	; Draw the playing field
+	vram_set_address (NAME_TABLE_0_ADDRESS + 2 * 32 + 3)
+	lda #$05
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 2 * 32 + 4)
+	ldx #0
+	lda #$04
+	@loop:
+	sta PPU_VRAM_IO
+	inx
+	cpx #24
+	bne @loop
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 2 * 32 + 28)
+	lda #$06
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 3 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 3 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 4 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 4 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 5 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 5 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 6 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 6 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 7 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 7 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 8 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 8 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 9 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 9 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 10 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 10 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 11 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 11 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 12 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 12 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 13 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 13 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 14 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 14 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 15 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 15 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 16 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 16 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 17 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 17 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 18 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 18 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 19 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 19 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 20 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 20 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 21 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 21 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 22 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 22 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 23 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 23 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 24 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 24 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 25 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 25 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 26 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 26 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 27 * 32 + 3)
+	lda #$01
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 27 * 32 + 28)
+	lda #$02
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 27 * 32 + 3)
+	lda #$08
+	sta PPU_VRAM_IO
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 27 * 32 + 4)
+	ldx #0
+	lda #$03
+	@loop2:
+	sta PPU_VRAM_IO
+	inx
+	cpx #24
+	bne @loop2
+
+	vram_set_address (NAME_TABLE_0_ADDRESS + 27 * 32 + 28)
+	lda #$07
+	sta PPU_VRAM_IO
 
 	; vram_set_address (NAME_TABLE_0_ADDRESS +13 * 32 + 12)
 	; ldx #0
@@ -870,7 +1099,7 @@ loop3:
 	stx temp+4
 	sta temp+5
 
-	ldx #4 ; write the six characters to the screen
+	ldx #0 ; write the six characters to the screen
 @loop:
 	lda temp,x
 	clc
@@ -896,42 +1125,62 @@ loop3:
 
 		;jsr update_body	
 	PLACE_PICKUP_LOOP:
+	againY:
     	jsr rand
-    	and #%00000111 ; Limit range to 0-7
+    	and #%00011111 ; Limit range to 0-7
+		cmp #23
+		bpl againY
     	asl
     	asl
     	asl ; *8
     	clc
-    	adc #95
+    	adc #24
     	sta temp_pickupY
 
+	againX:
     	jsr rand
-    	and #%00000111 ; Limit range to 0-7
+    	and #%00011111 ; Limit range to 0-7
+		cmp #23
+		bpl againX
     	asl
     	asl
     	asl ; * 8 
 		clc
-		adc #96 
+		adc #32 
     	sta temp_pickupX
+
+
+		lda oam
+    	cmp temp_pickupY
+    	bne CHECK_PICKUP_COLLISION
+
+    	lda oam + 3
+    	cmp temp_pickupX
+    	bne CHECK_PICKUP_COLLISION
 
     	; check if the temp placement collides with snake
     	ldx #0
 		stx snake_current_loop_size
 	CHECK_PICKUP_COLLISION:
 		lda snake_current_loop_size
-    	cmp actual_snake_size
+    	cmp snake_size
     	beq PLACE_PICKUP_DONE
 
 		lda snake_current_loop_size
 		asl
-		asl
 		tax
 
-    	lda oam, X
+    	lda segment_current_tile, X
+		asl
+		asl
+		asl
     	cmp temp_pickupY
     	bne NEXT_SEGMENT
 
-    	lda oam + 3, X
+    	lda segment_current_tile + 1, X
+		asl
+		asl
+		asl
     	cmp temp_pickupX
     	bne NEXT_SEGMENT
 
@@ -944,6 +1193,8 @@ loop3:
 	; the check is done so now we can place it
 	PLACE_PICKUP_DONE:
     	lda temp_pickupY
+		sec
+		sbc #1
     	sta oam + (63 * 4) ; Store Y position in OAM
 
     	lda temp_pickupX
@@ -1038,7 +1289,6 @@ loop3:
 
 		jmp END
 
-
 		X_RTOTATION:
 		lda d_x
 		cmp #0
@@ -1065,59 +1315,51 @@ loop3:
 
 .segment "CODE"
 .proc check_head_hit
-	lda #119 ;checken the borders of the playing field
-	sec
-	sbc y_border
-	cmp oam
-	beq GAME_OVER
-
-	lda #127
-	clc
-	adc y_border
-	cmp oam
-	beq GAME_OVER
-
-	lda #120
-	sec
-	sbc x_border
-	cmp oam + 3
-	beq GAME_OVER
-
-	lda #128
-	clc
-	adc x_border
-	cmp oam + 3
-	beq GAME_OVER
-
 lda snake_size
 sta snake_current_loop_size
 
+dec snake_current_loop_size
+
 	CHECK_SEGMENT_HIT:
 		lda snake_current_loop_size
-		cmp #0
+		cmp #2
 		beq LOOP_FINISHED
 			lda snake_current_loop_size
-			asl
 			asl
 			sta temp_dstY_address
 
 			lda temp_dstY_address
 			clc
-			adc #3
+			adc #1
 			sta temp_dstX_address
 
 			dec snake_current_loop_size
 
+			lda oam
+			clc 
+			adc #1
+			lsr
+			lsr
+			lsr
+			sta temp_srcY_address
+
+
 			; compare y coordinate
 			ldy temp_dstY_address
-			lda oam, Y
-			cmp oam
+			lda segment_current_tile, Y
+			cmp temp_srcY_address
 			bne CHECK_SEGMENT_HIT
 
+			lda oam + 3
+			lsr
+			lsr
+			lsr
+			sta temp_srcX_address
+
 			; compare x coordinate
-			ldy temp_dstX_address
-			lda oam, Y
-			cmp oam + 3
+			ldx temp_dstX_address
+			lda segment_current_tile, X
+			cmp temp_srcX_address
 			bne CHECK_SEGMENT_HIT
 
 			GAME_OVER:
@@ -1191,11 +1433,11 @@ sta snake_current_loop_size
 	@notlast:
 	; updating segment right before head
 		lda oam
+		clc
+		adc #1
 		lsr 
 		lsr
 		lsr
-		clc
-		adc #1
 		sta segment_current_tile
 
 		lda oam + 3
@@ -1446,7 +1688,7 @@ rts
 
 .segment "RODATA"
 default_palette:
-.byte $0F,$15,$26,$37 ; bg0 purple/pink
+.byte $0F,$15,$26,$29 ; bg0 purple/pink
 .byte $0F,$19,$29,$39 ; bg1 green
 .byte $0F,$11,$21,$31 ; bg2 blue
 .byte $0F,$00,$10,$30 ; bg3 greyscale
