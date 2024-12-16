@@ -21,7 +21,7 @@ INES_SRAM   = 1 ; 1 = battery backed SRAM at $6000-7FFF
 ;*****************************************************************
 
 .segment "TILES"
-.incbin "megablast.chr"
+.incbin "snake.chr"
 
 ;*****************************************************************
 ; Define NES interrupt vectors
@@ -228,6 +228,12 @@ wait_vblank2:
 		lda highscore
 		sta BATTERY_RAM
 
+		lda highscore + 1
+		sta BATTERY_RAM + 1
+
+		lda highscore + 1
+		sta BATTERY_RAM + 1
+
 		lda #%11110111 ; reset game over message update flag
 		and update
 		sta update
@@ -343,6 +349,12 @@ titleloop:
 	lda BATTERY_RAM
 	sta highscore
 
+	lda BATTERY_RAM + 1
+	sta highscore + 1
+
+	lda BATTERY_RAM + 1
+	sta highscore + 1
+
 	lda #32 ; define borders
 	sta x_border
 	lda #32
@@ -392,15 +404,6 @@ titleloop:
 	
 	lda #3
 	sta actual_snake_size
-
-; 	vram_set_address(NAME_TABLE_0_ADDRESS + 16 * 32 + 14)
-; 	lda #$60
-; 	ldy #0
-; snake_loop:
-; 	sta PPU_VRAM_IO
-; 	iny
-; 	cpy #2
-; 	bne snake_loop
 
 	jsr ppu_update
 
@@ -610,6 +613,12 @@ title_text:
 press_play_text:
 .byte "PRESS SELECT OR START TO BEGIN",0
 
+by_text:
+.byte "BY",0
+
+team_possible_text:
+.byte "TEAM POSSIBLE",0
+
 title_attributes:
 .byte %00000101,%00000101,%00000101,%00000101
 .byte %00000101,%00000101,%00000101,%00000101
@@ -621,14 +630,24 @@ title_attributes:
 
 	
 	; Write our title text
-	vram_set_address (NAME_TABLE_0_ADDRESS + 4 * 32 + 6)
+	vram_set_address (NAME_TABLE_0_ADDRESS + 10 * 32 + 13)
 	assign_16i text_address, title_text
 	jsr write_text
 
+	; Write our name text
+	vram_set_address (NAME_TABLE_0_ADDRESS + 13 * 32 + 9)
+	assign_16i text_address, team_possible_text
+	jsr write_text
+
 	; Write our press play text
-	vram_set_address (NAME_TABLE_0_ADDRESS + 16 * 32 + 0)
+	vram_set_address (NAME_TABLE_0_ADDRESS + 20 * 32 + 1)
 	assign_16i text_address, press_play_text
 	jsr write_text
+
+	; ; Write our by text
+	; vram_set_address (NAME_TABLE_0_ADDRESS + 18 * 32 + 15)
+	; assign_16i text_address, by_text
+	; jsr write_text
 
 	jsr ppu_update ; Wait until the screen has been drawn
 
@@ -708,17 +727,6 @@ paddr2: .res 2 ; 16-bit address pointer
 	vram_set_address (NAME_TABLE_0_ADDRESS + 1 * 32 + 14)
 	assign_16i text_address, game_screen_high_score
 	jsr write_text
-
-	; Set the title text to use the 2nd palette entries
-; 	vram_set_address (ATTRIBUTE_TABLE_1_ADDRESS)
-; 	assign_16i paddr, title_attributes
-; 	ldy #0
-; loop:
-; 	lda (paddr),y
-; 	sta PPU_VRAM_IO
-; 	iny
-; 	cpy #8
-; 	bne loop
 
 	; Draw the playing field
 	vram_set_address (NAME_TABLE_0_ADDRESS + 2 * 32 + 3)
