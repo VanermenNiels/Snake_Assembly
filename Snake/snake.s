@@ -7,6 +7,7 @@
 .segment "HEADER"
 INES_MAPPER = 0 ; 0 = NROM
 INES_MIRROR = 0 ; 0 = horizontal mirroring, 1 = vertical mirroring
+; for highscore saving
 INES_SRAM   = 1 ; 1 = battery backed SRAM at $6000-7FFF
 
 .byte 'N', 'E', 'S', $1A ; ID 
@@ -37,7 +38,6 @@ INES_SRAM   = 1 ; 1 = battery backed SRAM at $6000-7FFF
 ;*****************************************************************
 
 .segment "ZEROPAGE"
-
 time: .res 2
 lasttime: .res 1
 
@@ -52,15 +52,14 @@ update: 				 .res 1
 
 temp: .res 10
 
-snake_size:				 .res 4 ; score
-actual_snake_size:		 .res 4 ; snake size including the head
+snake_size:				 .res 8
 snake_current_loop_size: .res 4 
 
-temp_srcX_address: .res 4
-temp_dstX_address: .res 4
+temp_srcX_address: .res 4 ; previous
+temp_dstX_address: .res 4 ; current
 
-temp_srcY_address: .res 4
-temp_dstY_address: .res 4
+temp_srcY_address: .res 4 ; previous
+temp_dstY_address: .res 4 ; current
 
 temp_pickupX: .res 4
 temp_pickupY: .res 4
@@ -72,12 +71,9 @@ y_border: .res 4
 
 game_over:  .res 1 ; used as a boolean
 game_start: .res 1 ; used as a boolean
-just_picked_up: .res 1 ; just picked up food
 
-testing: .res 1
-
-lo_bit: .res 1
-hi_bit: .res 1
+lo_byte: .res 1
+hi_byte: .res 1
 
 ;*****************************************************************
 ; Sprite OAM Data area - copied to VRAM in NMI routine
@@ -98,7 +94,9 @@ oam: .res 256	; sprite OAM data
 
 .segment "BSS"
 palette: .res 32 ; current palette buffer
-segment_current_tile: .res 600 ; 2 bytes per pos: first byte for row and the second byte is for the column.
+
+; can not go to full size (figured it out after we did our presentation)
+segment_positions_arr: .res 1058 ; 2 bytes per pos: first byte for row and the second byte is for the column.
 
 ;*****************************************************************
 ; Main application entry point for starup/reset
@@ -213,7 +211,6 @@ wait_vblank2:
 		and update
 		sta update
 @skiphighscore:
-
 	lda #%00001000 ; does the game over message need to be displayed?
 	bit update
 	beq @skipgameover
@@ -225,6 +222,7 @@ wait_vblank2:
 		assign_16i text_address, restart_text 
 		jsr write_text
 
+		;store highscore after death
 		lda highscore
 		sta BATTERY_RAM
 
@@ -238,18 +236,6 @@ wait_vblank2:
 		and update
 		sta update
 @skipgameover:
-
-; ;jsr display_snake_segment
-; 	lda #%00000100 ; has the score updated?
-; 	bit update
-; 	beq @skipsegment
-; 		jsr delete_tail_draw_segments
-; 		jsr update_body_test
-; 		jsr display_snake_segment ; display score
-; 		lda #%11111011 ; reset score update flag
-; 		and update
-; 		sta update
-; @skipsegment:
 	lda game_over
 	cmp #1
 	beq END_UPDATE_TIMER
@@ -346,7 +332,8 @@ titleloop:
 	sta score+1
 	sta score+2
 
-	lda BATTERY_RAM
+	;loading in highscore
+	lda BATTERY_RAM 
 	sta highscore
 
 	lda BATTERY_RAM + 1
@@ -355,7 +342,8 @@ titleloop:
 	lda BATTERY_RAM + 1
 	sta highscore + 1
 
-	lda #32 ; define borders
+	; define borders
+	lda #32 
 	sta x_border
 	lda #32
 	sta y_border
@@ -383,12 +371,12 @@ titleloop:
 	asl
 	clc
 	adc #95
-	sta oam + (63 * 4)
+	sta oam + (1 * 4)
 
 	lda #1
-	sta oam + (63 * 4) + 1 ; set pattern
+	sta oam + (1 * 4) + 1 ; set pattern
  	lda #1
- 	sta oam + (63 * 4) + 2 ; set attributes
+ 	sta oam + (1 * 4) + 2 ; set attributes
 
 	jsr rand
 	and #%00000111
@@ -397,13 +385,10 @@ titleloop:
 	asl
 	clc
 	adc #96 
-	sta oam + (63 * 4) + 3
+	sta oam + (1 * 4) + 3
 
-	lda #3
+	lda #2
 	sta snake_size
-	
-	lda #3
-	sta actual_snake_size
 
 	jsr ppu_update
 
@@ -416,11 +401,12 @@ mainloop:
 	sta lasttime
 
 	jsr player_actions
-
+	;check if the player has pressed a button to start the game
 	lda game_start
 	cmp #0
 	beq END_UPDATE_TIMER
-
+	
+	; check if the player has died
 	lda game_over
 	cmp #1
 	beq END_UPDATE_TIMER
@@ -431,33 +417,16 @@ mainloop:
 		; reset frame timer
 		lda #0
 		sta frame_timer
-		; update snake and check if head it's a segment after update 
 
-		; lda just_picked_up
-		; cmp #1
-		; beq NOT_DELETE
-		; 	jsr delete_tail_draw_segments
-		; NOT_DELETE:
-
-		; lda #0
-		; sta just_picked_up
-		; ;jsr update_body
+		jsr update_body
 		jsr check_head_hit
-		jsr update_body_test
-		
-		; jsr display_snake_segment
-		; ;jsr update_body_test
-
-		; lda #%00000100 ; set flag to write high score to the screen
-		; ora update
-		; sta update 
 
 		; check if the head is on the pickup so it can place it somewhere else on a random place
 		lda oam
-		cmp oam + (63 * 4)
+		cmp oam + (1 * 4)
 		bne END_UPDATE_TIMER
 			lda oam + 3
-			cmp oam + (63 * 4) + 3
+			cmp oam + (1 * 4) + 3
 			bne END_UPDATE_TIMER
 			jsr place_pickup
 
@@ -483,7 +452,7 @@ mainloop:
 		lsr
 		lsr
 		lsr
-		cmp segment_current_tile
+		cmp segment_positions_arr
 		beq NOT_GAMEPAD_LEFT
 
 		lda d_x
@@ -514,7 +483,7 @@ NOT_GAMEPAD_LEFT:
 		lsr
 		lsr
 		lsr
-		cmp segment_current_tile
+		cmp segment_positions_arr
 		beq NOT_GAMEPAD_RIGHT
 
 		lda d_x
@@ -542,7 +511,7 @@ lda gamepad
 		lsr
 		lsr
 		lsr
-		cmp segment_current_tile + 1
+		cmp segment_positions_arr + 1
 		beq NOT_GAMEPAD_UP
 
 	 	lda d_y
@@ -572,7 +541,7 @@ lda gamepad
 		lsr
 		lsr
 		lsr
-		cmp segment_current_tile + 1
+		cmp segment_positions_arr + 1
 		beq NOT_GAMEPAD_DOWN
 
 	 	lda d_y
@@ -1115,69 +1084,44 @@ paddr2: .res 2 ; 16-bit address pointer
 .segment "CODE"
 .proc place_pickup
 		inc snake_size ; Increment snake size
-		inc actual_snake_size
 
-		lda #1
-		sta just_picked_up
-
-		;jsr update_body	
 	PLACE_PICKUP_LOOP:
 	againY:
     	jsr rand
-    	and #%00011111 ; Limit range to 0-7
-		cmp #23
-		bpl againY
-    	asl
-    	asl
-    	asl ; *8
+    	and #%00011111 ; Limit range to 0-31
+		cmp #22 
+		bpl againY ; try again if the number is bigger than 23
     	clc
-    	adc #24
+    	adc #4
     	sta temp_pickupY
 
 	againX:
     	jsr rand
-    	and #%00011111 ; Limit range to 0-7
-		cmp #23
-		bpl againX
-    	asl
-    	asl
-    	asl ; * 8 
+    	and #%00011111 ; Limit range to 0-31
+		cmp #22
+		bpl againX ; try again if the number is bigger than 23
 		clc
-		adc #32 
+		adc #6 
     	sta temp_pickupX
-
-
-		lda oam
-    	cmp temp_pickupY
-    	bne CHECK_PICKUP_COLLISION
-
-    	lda oam + 3
-    	cmp temp_pickupX
-    	bne CHECK_PICKUP_COLLISION
 
     	; check if the temp placement collides with snake
     	ldx #0
 		stx snake_current_loop_size
+
 	CHECK_PICKUP_COLLISION:
 		lda snake_current_loop_size
     	cmp snake_size
-    	beq PLACE_PICKUP_DONE
+    	beq CHECK_HEAD
 
 		lda snake_current_loop_size
 		asl
 		tax
 
-    	lda segment_current_tile, X
-		asl
-		asl
-		asl
+    	lda segment_positions_arr, X
     	cmp temp_pickupY
     	bne NEXT_SEGMENT
 
-    	lda segment_current_tile + 1, X
-		asl
-		asl
-		asl
+    	lda segment_positions_arr + 1, X
     	cmp temp_pickupX
     	bne NEXT_SEGMENT
 
@@ -1188,126 +1132,44 @@ paddr2: .res 2 ; 16-bit address pointer
     	jmp CHECK_PICKUP_COLLISION  
 
 	; the check is done so now we can place it
-	PLACE_PICKUP_DONE:
+	CHECK_HEAD:
+		lda temp_pickupY
+		asl
+		asl
+		asl
+		sta temp_pickupY
+
+		lda temp_pickupX
+		asl
+		asl
+		asl
+		sta temp_pickupX
+
+		; convert back to pixel format
+		lda oam
+		clc
+		adc #1
+    	cmp temp_pickupY
+    	bne PLACE
+
+    	lda oam + 3
+    	cmp temp_pickupX
+    	beq PLACE_PICKUP_LOOP
+
+		PLACE:
+		;account for the offset -1
     	lda temp_pickupY
 		sec
 		sbc #1
-    	sta oam + (63 * 4) ; Store Y position in OAM
+    	sta oam + (1 * 4) ; Store Y position in OAM
 
     	lda temp_pickupX
-    	sta oam + (63 * 4) + 3 ; Store X position in OAM
+    	sta oam + (1 * 4) + 3 ; Store X position in OAM
 
     	lda #1                  
     	jsr add_score
 
     	rts
-.endproc
-
-.segment "CODE"
-.proc update_body
-	lda snake_size
-	sta snake_current_loop_size
-
-	UPDATE_SNAKE_BODY:
-		lda snake_current_loop_size ; load loping and compare if it is 0 jump to update head
-		cmp #0
-		beq UPDATE_HEAD
-			; idx * 4 = result 1
-			lda snake_current_loop_size 
-			asl
-			asl
-			sta temp_dstY_address 
-
-			lda temp_dstY_address
-			clc
-			adc #1
-			sta temp_dstPattern_address
-
-			lda temp_dstY_address
-			clc
-			adc #3
-			sta temp_dstX_address
-
-
-
-			dec snake_current_loop_size
-			lda snake_current_loop_size
-			asl
-			asl
-			sta temp_srcY_address
-
-			lda temp_srcY_address
-			clc
-			adc #3
-			sta temp_srcX_address
-
-			ldx temp_srcY_address
-			ldy temp_dstY_address
-			lda oam, X
-			sta oam, Y
-
-			ldx temp_srcX_address
-			ldy temp_dstX_address
-			lda oam, X
-			sta oam, Y
-
-
-			jmp UPDATE_SNAKE_BODY
-
-	UPDATE_HEAD:
-		;update head
-		lda oam ; get the current Y
-		clc
-		adc d_y ; add the Y velocity
-		sta oam ; write the change
-
-		lda oam + 3 ; get the current x
-		clc
-		adc d_x    ; add the X velocity
-		sta oam + 3
-
-		lda d_y
-		cmp #0
-		beq X_RTOTATION
-		clc
-
-		lda #2
-		sta oam + 1
-
-		lda #%00000010
-		sta oam + 2
-
-		lda d_y
-		cmp #$08
-		bne X_RTOTATION
-
-		lda #%10000010
-		sta oam + 2
-
-		jmp END
-
-		X_RTOTATION:
-		lda d_x
-		cmp #0
-		beq END
-		clc
-
-		lda #3
-		sta oam + 1
-
-		lda #%00000010
-		sta oam + 2
-
-		lda d_x
-		cmp #$F8
-		bne END
-
-		lda #%01000010
-		sta oam + 2
-
-	END:
-
-	rts
 .endproc
 
 .segment "CODE"
@@ -1357,7 +1219,7 @@ dec snake_current_loop_size
 
 			; compare y coordinate
 			ldy temp_dstY_address
-			lda segment_current_tile, Y
+			lda segment_positions_arr, Y
 			cmp temp_srcY_address
 			bne CHECK_SEGMENT_HIT
 
@@ -1369,7 +1231,7 @@ dec snake_current_loop_size
 
 			; compare x coordinate
 			ldx temp_dstX_address
-			lda segment_current_tile, X
+			lda segment_positions_arr, X
 			cmp temp_srcX_address
 			bne CHECK_SEGMENT_HIT
 
@@ -1386,14 +1248,12 @@ dec snake_current_loop_size
 .endproc
 
 .segment "CODE"
-.proc update_body_test
+.proc update_body
 	lda snake_size
 	sta snake_current_loop_size
 	dec snake_current_loop_size
+
 	UPDATE_SNAKE_BODY:
-		; lda snake_current_loop_size
-		; cmp #0
-		; beq UPDATE_HEAD
 		clc
 		lda snake_current_loop_size
 		cmp #0
@@ -1420,28 +1280,17 @@ dec snake_current_loop_size
 
 			ldx temp_srcY_address
 			ldy temp_dstY_address
-			lda segment_current_tile, X
-			sta segment_current_tile, Y
+			lda segment_positions_arr, X
+			sta segment_positions_arr, Y
 
 			ldx temp_srcX_address
 			ldy temp_dstX_address
-			lda segment_current_tile, X
-			sta segment_current_tile, Y
+			lda segment_positions_arr, X
+			sta segment_positions_arr, Y
 			
-
 			jmp UPDATE_SNAKE_BODY
 
 	UPDATE_HEAD:
-		; lda snake_current_loop_size
-		; cmp #0
-		; beq @notlast
-		; 	lda segment_current_tile
-		; 	sta segment_current_tile + 2
-
-		; 	lda segment_current_tile
-		; 	sta segment_current_tile + 3
-
-	@notlast:
 	; updating segment right before head
 		lda oam
 		clc
@@ -1449,13 +1298,13 @@ dec snake_current_loop_size
 		lsr 
 		lsr
 		lsr
-		sta segment_current_tile
+		sta segment_positions_arr
 
 		lda oam + 3
 		lsr 
 		lsr
 		lsr
-		sta segment_current_tile + 1
+		sta segment_positions_arr + 1
 
 
 		;update head
@@ -1510,82 +1359,56 @@ dec snake_current_loop_size
 		sta oam + 2
 
 	END:
-
-		; lda #%00000100 ; set flag to write high score to the screen
-		; ora update
-		; sta update
 	rts
 .endproc
 
 .segment "CODE"
 .proc display_snake_segment
-	;jsr ppu_off
 
-		; a 
+		;load start of the nametable adress
 		lda #$20
-		sta hi_bit
+		sta hi_byte
 
 		lda #$00
-		sta lo_bit
+		sta lo_byte
 
 		; update y pos
-		lda segment_current_tile
+		lda segment_positions_arr
 		lsr
 		lsr
 		lsr
 		sta temp_dstY_address
 
-		lda hi_bit
+		lda hi_byte
 		clc
 		adc temp_dstY_address
-		sta hi_bit
+		sta hi_byte
 
-		lda segment_current_tile
+		lda segment_positions_arr
 		asl
 		asl
 		asl
 		asl
 		asl
-		sta lo_bit
+		sta lo_byte
 
-		lda segment_current_tile + 1
+		lda segment_positions_arr + 1
 		sta temp_dstX_address
 
-	; 	clc
-	; 	ldx lo_bit
-	; loop:
-	; 	lda temp_dstX_address
-	; 	cmp #0
-	; 	beq endloop
-	; 		clc
-	; 		inx
-	; 		lda hi_bit
-	; 		adc #0
-	; 		sta hi_bit
-	; 		clc
-	; 		dec temp_dstX_address
-	; 		jmp loop
-
-	; endloop:
-	; 	stx lo_bit
-
-		lda lo_bit
+		lda lo_byte
 		clc
 		adc temp_dstX_address
-		sta lo_bit
+		sta lo_byte
 
 		; draw a base line
 		lda PPU_STATUS
-		lda hi_bit
+		lda hi_byte
 		sta PPU_VRAM_ADDRESS2
-		lda lo_bit
+		lda lo_byte
 		sta PPU_VRAM_ADDRESS2
 
 		lda #$60
 		sta PPU_VRAM_IO
-
-	;jsr ppu_update
-	;vram_clear_address
 	rts
 
 .endproc
@@ -1623,72 +1446,52 @@ rts
 
 		; a 
 		lda #$20
-		sta hi_bit
+		sta hi_byte
 
 		lda #$00
-		sta lo_bit
+		sta lo_byte
 
 		; update y pos
 		ldy temp_dstY_address
-		lda segment_current_tile, Y
+		lda segment_positions_arr, Y
 		lsr
 		lsr
 		lsr
 		sta temp_srcY_address
 
-		lda hi_bit
+		lda hi_byte
 		clc
 		adc temp_srcY_address
-		sta hi_bit
+		sta hi_byte
 
 		ldy temp_dstY_address
-		lda segment_current_tile, Y
+		lda segment_positions_arr, Y
 		asl
 		asl
 		asl
 		asl
 		asl
-		sta lo_bit
+		sta lo_byte
 
 		ldx temp_dstX_address
-		lda segment_current_tile, X
+		lda segment_positions_arr, X
 		sta temp_dstX_address
 
-	; 	ldx lo_bit
-	; 	clc
-	; loop2:
-	; 	lda temp_dstX_address
-	; 	cmp #0
-	; 	beq endloop2
-	; 		clc
-	; 		inx
-	; 		lda hi_bit
-	; 		adc #0
-	; 		sta hi_bit
-	; 		clc
-	; 		dec temp_dstX_address
-	; 		jmp loop2
-
-	; endloop2:
-	; 	stx lo_bit
-
-	lda lo_bit
+	lda lo_byte
 	clc
 	adc temp_dstX_address
-	sta lo_bit
+	sta lo_byte
 
 		; draw a base line
 		lda PPU_STATUS
-		lda hi_bit
+		lda hi_byte
 		sta PPU_VRAM_ADDRESS2
-		lda lo_bit
+		lda lo_byte
 		sta PPU_VRAM_ADDRESS2
 
 		lda #$0
 		sta PPU_VRAM_IO
 
-	;jsr ppu_update
-	;vram_clear_address
 rts
 .endproc
 
